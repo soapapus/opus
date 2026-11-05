@@ -14,6 +14,19 @@
 .memo-list-search .search input { width: 100%; min-width: 0; }
 .memo-list-search .search kbd { display: none; }
 .memo-list-search .search-pop { width: min(350px, 60vw); z-index: 20; }
+.memo-list-search .search .s-icon {
+  position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+  width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+.memo-list-search .search input { padding-left: 34px; }
+.memo-bulk-delete { width: 28px; height: 28px; flex: none; }
+.memo-bulk-delete:disabled { opacity: 0.35; cursor: default; }
+.memo-bulk-delete:not(:disabled):hover { color: var(--red); background: var(--well); }
+.memo-check { width: 14px; height: 14px; margin: 4px 0 0; flex: none; accent-color: var(--accent); cursor: pointer; }
+.memo-selection { display: flex; justify-content: space-between; padding: 6px 12px 0; color: var(--text-2); font-size: 11px; }
+.memo-selection button { text-decoration: underline; }
+.memo-delete-error { padding: 4px 12px; font-size: 11px; color: var(--red); }
 .memo-list .memov-scroll { padding: 0 8px 20px; }
 .memo-list .agroup { padding-top: 12px; }
 .memo-list .agroup h3 { font-size: 11px; padding: 0 8px; }

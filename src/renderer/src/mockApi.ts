@@ -173,7 +173,7 @@ export function installMockApi(): void {
       persistWorkspaces()
       return { ...n, conflictCopy }
     },
-    deleteNote: async (id) => void notes.delete(id),
+    deleteNote: async (id) => { notes.delete(id); persistWorkspaces() },
     discardIfEmpty: async (id) => {
       const n = notes.get(id)
       if (n && !n.title.trim() && !n.body.trim()) {

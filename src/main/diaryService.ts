@@ -110,11 +110,8 @@ export class DiaryService {
   remove(id: string): void {
     const path = this.index.pathOf(id)
     if (!path) return
-    try {
-      this.store.trash(path)
-    } finally {
-      this.index.remove(id)
-    }
+    this.store.trash(path)
+    this.index.remove(id)
   }
 
   /** 제목도 본문도 비어 있으면 파일을 지운다 (새 메모를 만들었다가 그냥 둔 경우) */

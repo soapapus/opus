@@ -5,31 +5,33 @@ export function ConfirmDialog({
   title,
   message,
   confirmLabel,
+  busy = false,
   onConfirm,
   onCancel
 }: {
   title: string
   message: string
   confirmLabel: string
+  busy?: boolean
   onConfirm: () => void
   onCancel: () => void
 }) {
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onCancel()
+    const onKey = (e: KeyboardEvent) => !busy && e.key === 'Escape' && onCancel()
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onCancel])
+  }, [onCancel, busy])
   return (
-    <div className="overlay" onMouseDown={onCancel}>
+    <div className="overlay" onMouseDown={() => !busy && onCancel()}>
       <div className="dialog" role="alertdialog" aria-label={title} onMouseDown={(e) => e.stopPropagation()}>
         <h2>{title}</h2>
         <p>{message}</p>
         <div className="actions">
-          <button className="btn" onClick={onCancel}>
+          <button className="btn" disabled={busy} onClick={onCancel}>
             취소
           </button>
-          <button className="btn danger" autoFocus onClick={onConfirm}>
-            {confirmLabel}
+          <button className="btn danger" autoFocus disabled={busy} onClick={onConfirm}>
+            {busy ? '처리 중…' : confirmLabel}
           </button>
         </div>
       </div>
