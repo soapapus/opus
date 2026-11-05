@@ -43,7 +43,7 @@ PR을 올리기 전에 `typecheck`, `test`, `build` 셋 다 로컬에서 통과�
 2. 시작 전에 최신 `main`에서 브랜치를 딴다. 충돌이 나면 `main` 위로 rebase 해서 스스로 푼다. 다른 에이전트의 브랜치는 건드리지 않는다.
 3. PR은 작게, 한 가지 목적만. 제목은 한국어로 무엇이 바뀌는지 한 줄.
 4. PR 본문에 적을 것: 바뀐 점, 주인이 화면에서 확인할 방법, 테스트 결과.
-5. PR을 열면 **자동 머지를 켠다**: `gh pr merge <번호> --auto --squash`. (저장소 설정상 검사가 모두 통과해야만 머지된다.)
+5. PR을 열면 **자동 머지(squash)를 켠다**: `gh pr merge <번호> --auto --squash`. GraphQL을 못 쓰는 환경(Claude Code 클라우드 세션)은 `gh api -X PUT repos/soapapus/opus/pulls/<번호>/ccr/auto_merge -f merge_method=squash`. 저장소 규칙상 검사(`check`, `windows-build`)가 모두 통과해야만 머지된다.
 6. 검사가 실패하면 스스로 고쳐서 다시 push 한다. **테스트를 지우거나, 건너뛰거나(`skip`/`only`), 기대값을 억지로 바꿔서 통과시키지 않는다.**
 7. 기능을 추가하거나 동작을 바꾸면 그 동작을 확인하는 테스트를 같이 넣는다.
 8. 사용자 눈에 보이는 변경이면 `package.json`의 `version`을 올리고(작은 수정 0.x.**y**, 기능 0.**x**.0) `CHANGELOG.md` 맨 위에 한 줄씩 적는다.
@@ -69,7 +69,12 @@ PR을 올리기 전에 `typecheck`, `test`, `build` 셋 다 로컬에서 통과�
 - 이 저장소는 공개(Public)다. 샘플·테스트 데이터는 지어낸 일반 예시만 쓴다.
 - 네트워크로 받는 코드나 원격 스크립트를 실행하는 기능을 넣지 않는다.
 
-## 6. 하지 말 것
+## 6. 결과물
+
+- `main`이 바뀌면 `.github/workflows/release.yml`이 Windows 설치본을 만들어 Releases에 `v<버전>-<커밋>` 태그로 올린다. 주인은 이것만 본다.
+- PR마다 `windows-build` 검사가 만든 설치본은 Actions 아티팩트(7일)로 남는다.
+
+## 7. 하지 말 것
 
 - `main` 직접 push, 강제 push, 다른 에이전트 브랜치 rebase
 - 테스트 끄기·지우기로 검사 통과시키기
