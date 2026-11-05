@@ -1,6 +1,6 @@
 {
   "name": "opus",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Opus — 캘린더와 메모를 한곳에",
   "private": true,
   "author": "Opus",
@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "dist": "electron-vite build && electron-builder --win --x64",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "test:desktop": "node scripts/check-memo-desktop.mjs"
   },
   "dependencies": {
     "fflate": "^0.8.2"

@@ -46,7 +46,7 @@ test.describe('메모', () => {
     await page.locator('.agenda-open .tiptap').click()
     await page.keyboard.press('Control+End')
     for (let i = 0; i < 40; i++) {
-      await page.keyboard.type(`긴 메모 줄 ${i}`)
+      await page.keyboard.insertText(`긴 메모 줄 ${i}`)
       await page.keyboard.press('Enter')
     }
 
@@ -96,6 +96,7 @@ test.describe('화면 규칙', () => {
     await goMemo(page)
     await page.locator('.arow-b').first().click()
     expect(await contrastOf(page, '.agenda-open .kind-chip')).toBeGreaterThanOrEqual(4.5)
+    await page.getByRole('button', { name: '캘린더 패널' }).click()
     expect(await contrastOf(page, '.mini-g .md.today')).toBeGreaterThanOrEqual(3)
     assertNoErrors(errors)
   })

@@ -5,16 +5,19 @@ import { appendFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { AppState } from './app'
+import { requestFlush } from './flush'
 import type { CreateNoteInput, NoteKind, Provider, SaveNoteInput, WindowAction } from '../shared/types'
 import { ExternalService, type Vault } from './external/service'
 
 // 설정 폴더는 %APPDATA%\\Opus. 예전 라임 다이어리를 쓰던 PC면 처음 한 번 설정·연결 키를 복사해 온다.
 // (예전 폴더를 그대로 쓰면 라임 다이어리가 켜져 있을 때 Opus가 '이미 실행 중'으로 막힌다)
 {
-  const opusDir = join(app.getPath('appData'), 'Opus')
+  // 데스크톱 통합 검사는 실제 사용자 설정·기록과 완전히 분리한다.
+  const testUserData = !app.isPackaged ? process.env['OPUS_TEST_USER_DATA'] : undefined
+  const opusDir = testUserData || join(app.getPath('appData'), 'Opus')
   const oldDir = join(app.getPath('appData'), 'LimeDiary')
   try {
-    if (!existsSync(join(opusDir, 'settings.json')) && existsSync(join(oldDir, 'settings.json'))) {
+    if (!testUserData && !existsSync(join(opusDir, 'settings.json')) && existsSync(join(oldDir, 'settings.json'))) {
       mkdirSync(opusDir, { recursive: true })
       for (const f of ['settings.json', 'secure.bin']) if (existsSync(join(oldDir, f))) copyFileSync(join(oldDir, f), join(opusDir, f))
     }
@@ -130,17 +133,7 @@ function registerIpc(): void {
     try {
       if (scratchWin && !scratchWin.isDestroyed()) {
         const scratch = scratchWin
-        await new Promise<void>((resolve, reject) => {
-          const timer = setTimeout(() => { ipcMain.removeListener('app:flushed', done); reject(new Error('빠른 메모 저장을 기다리고 있어요. 다시 시도해 주세요')) }, 5000)
-          const done = (event: Electron.IpcMainEvent, error?: string) => {
-            if (event.sender !== scratch.webContents) return
-            clearTimeout(timer)
-            ipcMain.removeListener('app:flushed', done)
-            error ? reject(new Error(error)) : resolve()
-          }
-          ipcMain.on('app:flushed', done)
-          scratch.webContents.send('app:flush')
-        })
+        await requestFlush(scratch, ipcMain)
         scratch.destroy()
         scratchWin = null
       }
@@ -321,24 +314,20 @@ function toggleScratch(): void {
 
 /** 창을 닫기 전에 화면에서 저장하지 못한 글을 저장하게 한 뒤 닫는다. */
 function setupCloseFlush(w: BrowserWindow): void {
-  w.on('close', (e) => {
-    if (closing) return
+  w.on('close', async (e) => {
+    if (closing) { e.preventDefault(); return }
     e.preventDefault()
     closing = true
-    let done = false
-    const finish = (): void => {
-      if (done) return
-      done = true
+    try {
+      const windows = [w, ...(scratchWin && !scratchWin.isDestroyed() ? [scratchWin] : [])]
+      await Promise.all(windows.map(target => requestFlush(target, ipcMain)))
       w.destroy()
       scratchWin?.destroy()
       app.quit()
-    }
-    ipcMain.once('app:flushed', finish)
-    setTimeout(finish, 2500)
-    try {
-      w.webContents.send('app:flush')
-    } catch {
-      finish()
+    } catch (error) {
+      closing = false
+      w.show()
+      dialog.showErrorBox('저장을 마치지 못했어요', (error instanceof Error ? error.message : String(error)) + '\n창을 닫지 않았어요. 내용을 확인하고 다시 저장해 주세요.')
     }
   })
 }
