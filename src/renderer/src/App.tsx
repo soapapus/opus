@@ -489,14 +489,22 @@ export function App() {
         info={info}
         conn={conn}
         tags={tags}
-        calView={calView}
         memoFilter={memoFilter}
         pinnedCount={pinned.length}
         todayCount={todayCount}
         docCount={docs.length}
         settingsSection={setSection}
         onView={(v) => void changeView(v)}
-        onCalView={(v) => setCalView(v)}
+        onWorkspace={async (id) => {
+          if (busy || id === info?.workspaceId) return
+          setBusy(true)
+          try {
+            await leave()
+            ++refreshSeq.current
+            await window.api.switchWorkspace(id)
+            window.location.reload()
+          } catch { say('전환하지 못했어요. 저장 상태를 확인하고 다시 시도해 주세요'); setBusy(false) }
+        }}
         onMemoFilter={async (f) => {
           await leave()
           setNote(null)

@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react'
 import type { AppInfo, ConnectionsState, TagCount } from '../../../shared/types'
 import { IconCalendar, IconGear, IconNotes, IconPlus } from '../icons'
-import { menuName, type CalView, type Prefs } from '../prefs'
+import { menuName, type Prefs } from '../prefs'
 import type { MemoFilter } from './MemoView'
 
 export type View = 'calendar' | 'memo' | 'settings'
 
 export const SETTING_SECTIONS = [
+  { id: 'workspace', label: '워크스페이스' },
   { id: 'look', label: '화면 · 강조색' },
   { id: 'menu', label: '메뉴 이름' },
   { id: 'calendar', label: '캘린더' },
@@ -67,14 +68,13 @@ export function Workspace({
   info,
   conn,
   tags,
-  calView,
   memoFilter,
   pinnedCount,
   todayCount,
   docCount,
   settingsSection,
   onView,
-  onCalView,
+  onWorkspace,
   onMemoFilter,
   onNewMemo,
   onScratch,
@@ -86,14 +86,13 @@ export function Workspace({
   info: AppInfo | null
   conn: ConnectionsState | null
   tags: TagCount[]
-  calView: CalView
   memoFilter: MemoFilter
   pinnedCount: number
   todayCount: number
   docCount: number
   settingsSection: string
   onView: (v: View) => void
-  onCalView: (v: CalView) => void
+  onWorkspace: (id: string) => void
   onMemoFilter: (f: MemoFilter) => void
   onNewMemo: () => void
   onScratch: () => void
@@ -115,15 +114,6 @@ export function Workspace({
         <button className={`ws-item ${view === 'calendar' ? 'on' : ''}`} onClick={() => onView('calendar')}>
           {menuName(prefs, 'calendar')}
         </button>
-        {view === 'calendar' && (
-          <div className="ws-sub">
-            {(['month', 'week', 'day'] as CalView[]).map((v) => (
-              <button key={v} className={`ws-subitem ${calView === v ? 'on' : ''}`} onClick={() => onCalView(v)}>
-                {v === 'month' ? '월 보기' : v === 'week' ? '주 보기' : '일 보기'}
-              </button>
-            ))}
-          </div>
-        )}
         <button className={`ws-item ${view === 'memo' ? 'on' : ''}`} onClick={() => onView('memo')}>
           {menuName(prefs, 'memo')}
           <span className="cnt">{docCount}</span>
@@ -184,7 +174,10 @@ export function Workspace({
       <div className="ws-card">
         <div className="av">나</div>
         <div>
-          <b>개인 워크스페이스</b>
+          <select aria-label="워크스페이스 전환" value={info?.workspaceId ?? ''} onChange={e => onWorkspace(e.target.value)}>
+            {info?.workspaces.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+          </select>
+          <button className="ws-item" onClick={() => onSettings('workspace')}>워크스페이스 관리</button>
           <small>{backupLabel(info?.lastBackup)}</small>
         </div>
       </div>

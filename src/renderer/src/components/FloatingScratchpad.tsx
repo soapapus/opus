@@ -9,20 +9,25 @@ export function FloatingScratchpad() {
   const latest = useRef('')
   const dirty = useRef(false)
   const timer = useRef<number | null>(null)
+  const inflight = useRef<Promise<void>>(Promise.resolve())
 
   const flush = useCallback(async () => {
     if (timer.current !== null) {
       window.clearTimeout(timer.current)
       timer.current = null
     }
+    await inflight.current
     if (!dirty.current) return
     dirty.current = false
     try {
-      await window.api.scratchSave(latest.current)
+      const saving = window.api.scratchSave(latest.current)
+      inflight.current = saving.catch(() => undefined)
+      await saving
       setStatus('저장됨')
     } catch {
       dirty.current = true
       setStatus('저장하지 못했어요')
+      throw new Error('빠른 메모를 저장하지 못했어요')
     }
   }, [])
 
@@ -39,7 +44,7 @@ export function FloatingScratchpad() {
 
   useEffect(() => window.api.onFlushRequest(flush), [flush])
   useEffect(() => {
-    const onBlur = () => void flush()
+    const onBlur = () => void flush().catch(() => undefined)
     window.addEventListener('blur', onBlur)
     return () => window.removeEventListener('blur', onBlur)
   }, [flush])
@@ -50,7 +55,7 @@ export function FloatingScratchpad() {
     dirty.current = true
     setStatus('저장 중…')
     if (timer.current !== null) window.clearTimeout(timer.current)
-    timer.current = window.setTimeout(() => void flush(), 500)
+    timer.current = window.setTimeout(() => void flush().catch(() => undefined), 500)
   }
 
   const hide = async () => {
