@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { AppInfo, HolidayStatus } from '../../../shared/types'
 import { ACCENTS, DEFAULT_PREFS, inkOn, isHex, type CalView, type Prefs } from '../prefs'
-import { MenuList, ProfileEditor, WorkspaceList } from './SettingsLists'
+import { MenuList, WorkspaceList } from './SettingsLists'
 import { CalendarConnections } from './CalendarConnections'
 import { SETTING_SECTIONS } from './Shell'
 import { isCloudSyncedPath } from '../../../shared/sync'
@@ -123,7 +123,7 @@ export function SettingsView({
     if (!box) return
     const onScroll = () => {
       const secs = Array.from(box.querySelectorAll<HTMLElement>('.set-sec'))
-      let cur = secs[0]?.dataset.sec ?? 'profile'
+      let cur = secs[0]?.dataset.sec ?? 'workspace'
       for (const s of secs) if (s.offsetTop - box.scrollTop < 140) cur = s.dataset.sec ?? cur
       onSection(cur)
     }
@@ -140,10 +140,6 @@ export function SettingsView({
         <h1>설정</h1>
         <p>Opus의 모든 설정은 이 화면 한곳에 모여 있어요. 바꾸면 바로 적용되고 자동으로 저장돼요.</p>
       </div>
-
-      <Section id="profile" title="프로필" desc="왼쪽 아래와 기록에 보이는 내 정보예요. 이 PC에만 저장하고 밖으로 보내지 않아요.">
-        <ProfileEditor prefs={prefs} onPrefs={onPrefs} workspaceName={info?.workspaces.find((w) => w.id === info.workspaceId)?.name ?? ''} />
-      </Section>
 
       <Section id="workspace" title="워크스페이스" desc="메모·일정·빠른 메모·백업을 공간마다 따로 보관해요. 공간을 꺼도 메모와 파일은 그대로 남아요.">
         <WorkspaceList info={info} onChanged={onConnChanged} onSwitch={onWorkspace} />

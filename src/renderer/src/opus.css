@@ -1951,18 +1951,6 @@ span.sig {
   color: var(--accent-ink);
   white-space: nowrap;
 }
-.prof-card .chip {
-  display: inline-flex;
-  align-items: center;
-  height: 24px;
-  padding: 0 8px;
-  border-radius: 6px;
-  font-size: 11.5px;
-  font-weight: 600;
-  background: var(--well);
-  border: 1px solid var(--hair2);
-  flex: none;
-}
 .txt.bare {
   flex: 1;
   min-width: 0;
@@ -2060,68 +2048,6 @@ span.sig {
   flex-wrap: wrap;
   padding-top: 10px;
 }
-.prof-top {
-  display: flex;
-  gap: 14px;
-  align-items: flex-end;
-}
-.prof-fields {
-  flex: 1;
-  min-width: 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-.prof-more {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  padding-top: 10px;
-}
-.fld {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-.fld.wide {
-  grid-column: 1 / -1;
-}
-.fld > span {
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--text-2);
-}
-.fld .txt {
-  width: 100%;
-}
-.prof-card {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  margin-top: 10px;
-  padding: 8px 10px;
-  border-radius: 10px;
-  border: 1px solid var(--hair2);
-  background: var(--surface);
-  min-width: 0;
-}
-.prof-card > div {
-  flex: 1;
-  min-width: 0;
-}
-.prof-card b {
-  display: block;
-  font-size: 13px;
-}
-.prof-card small {
-  display: block;
-  font-size: 11.5px;
-  color: var(--text-3);
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
 .ws-brand .wss span {
   font-size: inherit;
   letter-spacing: 0;
@@ -2133,4 +2059,60 @@ span.sig {
 .ws-brand .wss-mark {
   display: grid;
   font-size: 11px;
+}
+
+/* ---------- 프로필 팝업 (왼쪽 아래 이름 카드) ---------- */
+.prof-dlg {
+  width: min(440px, calc(100vw - 48px));
+  padding: 20px;
+}
+.prof-dlg h2 {
+  font-size: 18px;
+  margin: 0 0 12px;
+}
+.pf-photo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.pf {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  min-width: 0;
+  flex: 1;
+}
+.pf > span {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.pf .txt {
+  width: 100%;
+  height: 32px;
+}
+.pf .txt.area {
+  height: auto;
+}
+.pf-row {
+  display: flex;
+  gap: 10px;
+}
+.pf-note {
+  margin: 8px 0 0 !important;
+  font-size: 11.5px;
+  color: var(--text-3) !important;
+}
+.pf-acts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+}
+.btn-accent.sm {
+  height: 30px;
+  padding: 0 14px;
+  font-size: 12.5px;
 }

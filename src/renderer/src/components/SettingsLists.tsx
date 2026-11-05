@@ -40,89 +40,109 @@ async function shrinkPhoto(file: File): Promise<string> {
   }
 }
 
-export function ProfileEditor({ prefs, onPrefs, workspaceName }: { prefs: Prefs; onPrefs: (p: Partial<Prefs>) => void; workspaceName: string }) {
-  const p = prefs.profile
-  const set = (patch: Partial<Profile>) => onPrefs({ profile: { ...p, ...patch } })
+/** 왼쪽 아래 이름 카드를 누르면 뜨는 프로필 팝업. 저장을 눌러야 바뀐다 */
+export function ProfileDialog({ prefs, onSave, onClose }: { prefs: Prefs; onSave: (p: Profile) => void; onClose: () => void }) {
+  const [p, setP] = useState<Profile>(prefs.profile)
+  const set = (patch: Partial<Profile>) => setP((cur) => ({ ...cur, ...patch }))
   const file = useRef<HTMLInputElement>(null)
-  const [more, setMore] = useState(false)
-  const [preview, setPreview] = useState(false)
   const [msg, setMsg] = useState('')
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  const contact = [p.name.trim(), p.role.trim(), p.phone.trim(), p.email.trim()].filter(Boolean).join(' · ')
   return (
-    <div className="lst">
-      <div className="prof-top">
-        <Avatar prefs={prefs} size={48} />
-        <div className="prof-fields">
-          <label className="fld">
-            <span>표시 이름</span>
-            <input className="txt" maxLength={30} value={p.name} placeholder="나" onChange={(e) => set({ name: e.target.value })} />
-          </label>
-          <label className="fld">
-            <span>소속 · 직함</span>
-            <input className="txt" maxLength={40} value={p.role} placeholder="예: 기획팀 · 매니저" onChange={(e) => set({ role: e.target.value })} />
-          </label>
-        </div>
-      </div>
-      <div className="lst-acts">
-        <button className="btn sm" onClick={() => file.current?.click()}>
-          사진 바꾸기
-        </button>
-        {p.photo && (
-          <button className="btn sm" onClick={() => set({ photo: '' })}>
-            사진 빼기
+    <div className="overlay" onMouseDown={onClose}>
+      <form
+        className="dialog prof-dlg"
+        role="dialog"
+        aria-label="프로필"
+        onMouseDown={(e) => e.stopPropagation()}
+        onSubmit={(e) => {
+          e.preventDefault()
+          onSave({ ...p, name: p.name.trim(), role: p.role.trim(), email: p.email.trim(), phone: p.phone.trim(), intro: p.intro.trim() })
+        }}
+      >
+        <h2>프로필</h2>
+        <div className="pf-photo">
+          <Avatar prefs={{ ...prefs, profile: p }} size={48} />
+          <button type="button" className="btn sm" onClick={() => file.current?.click()}>
+            사진 변경
           </button>
-        )}
-        <input
-          ref={file}
-          type="file"
-          accept="image/*"
-          hidden
-          onChange={async (e) => {
-            const f = e.target.files?.[0]
-            e.target.value = ''
-            if (!f) return
-            try {
-              set({ photo: await shrinkPhoto(f) })
-              setMsg('')
-            } catch {
-              setMsg('사진을 읽지 못했어요')
-            }
-          }}
-        />
-        <span className="spacer" />
-        <button className="btn sm ghost" aria-expanded={more} onClick={() => setMore((v) => !v)}>
-          {more ? '선택 정보 접기' : '소개 · 연락처 펼치기'}
-        </button>
-        <button className="btn sm ghost" aria-expanded={preview} onClick={() => setPreview((v) => !v)}>
-          {preview ? '미리보기 닫기' : '미리보기'}
-        </button>
-      </div>
-      {msg && <p className="lst-note" role="status">{msg}</p>}
-      {more && (
-        <div className="prof-more">
-          <label className="fld wide">
-            <span>소개</span>
-            <textarea className="txt area" rows={2} maxLength={200} value={p.intro} placeholder="한 줄 소개" onChange={(e) => set({ intro: e.target.value })} />
-          </label>
-          <label className="fld">
-            <span>이메일</span>
-            <input className="txt" type="email" maxLength={80} value={p.email} placeholder="선택" onChange={(e) => set({ email: e.target.value })} />
-          </label>
-          <label className="fld">
+          {p.photo && (
+            <button type="button" className="btn sm ghost" onClick={() => set({ photo: '' })}>
+              사진 빼기
+            </button>
+          )}
+          <input
+            ref={file}
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={async (e) => {
+              const f = e.target.files?.[0]
+              e.target.value = ''
+              if (!f) return
+              try {
+                set({ photo: await shrinkPhoto(f) })
+                setMsg('')
+              } catch {
+                setMsg('사진을 읽지 못했어요')
+              }
+            }}
+          />
+        </div>
+        <label className="pf">
+          <span>이름</span>
+          <input className="txt" autoFocus maxLength={30} value={p.name} placeholder="나" onChange={(e) => set({ name: e.target.value })} />
+        </label>
+        <label className="pf">
+          <span>소속 · 직함</span>
+          <input className="txt" maxLength={40} value={p.role} placeholder="예: 기획팀 · 매니저" onChange={(e) => set({ role: e.target.value })} />
+        </label>
+        <div className="pf-row">
+          <label className="pf">
             <span>연락처</span>
-            <input className="txt" maxLength={30} value={p.phone} placeholder="선택" onChange={(e) => set({ phone: e.target.value })} />
+            <input className="txt" maxLength={30} value={p.phone} placeholder="010-0000-0000" onChange={(e) => set({ phone: e.target.value })} />
+          </label>
+          <label className="pf">
+            <span>이메일</span>
+            <input className="txt" type="email" maxLength={80} value={p.email} placeholder="name@example.com" onChange={(e) => set({ email: e.target.value })} />
           </label>
         </div>
-      )}
-      {preview && (
-        <div className="prof-card" aria-label="프로필 미리보기">
-          <Avatar prefs={prefs} size={32} />
-          <div>
-            <b>{p.name.trim() || '나'}</b>
-            <small>{[p.role.trim(), p.intro.trim()].filter(Boolean).join(' · ') || '소속과 소개를 적으면 여기에 보여요'}</small>
-          </div>
-          {workspaceName && <span className="chip">{workspaceName}</span>}
+        <label className="pf">
+          <span>소개</span>
+          <textarea className="txt area" rows={3} maxLength={200} value={p.intro} placeholder="하는 일, 관심 분야 등" onChange={(e) => set({ intro: e.target.value })} />
+        </label>
+        <p className="pf-note" role="status">
+          {msg || '이 PC에만 저장하고 밖으로 보내지 않아요.'}
+        </p>
+        <div className="pf-acts">
+          <button
+            type="button"
+            className="btn sm"
+            disabled={!contact}
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(contact)
+                setMsg('연락처를 복사했어요')
+              } catch {
+                setMsg('복사하지 못했어요')
+              }
+            }}
+          >
+            연락처 복사
+          </button>
+          <span className="spacer" />
+          <button type="button" className="btn sm" onClick={onClose}>
+            취소
+          </button>
+          <button type="submit" className="btn-accent sm">
+            저장
+          </button>
         </div>
-      )}
+      </form>
     </div>
   )
 }

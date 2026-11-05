@@ -10,6 +10,7 @@ import { DayPanel } from './components/DayPanel'
 import { MemoEditor } from './components/MemoEditor'
 import { applyMemoFilter, MemoView, type MemoFilter } from './components/MemoView'
 import { SettingsView } from './components/SettingsView'
+import { ProfileDialog } from './components/SettingsLists'
 import { googleSignal, Rail, TopBar, Workspace, type View } from './components/Shell'
 import { Splitter } from './components/Splitter'
 import { menuName, menuShown, usePrefs, WIDTH, type CalView } from './prefs'
@@ -40,8 +41,8 @@ export function App() {
   const [calFilter, setCalFilter] = useState<CalFilter>('all')
   const [selectedDate, setSelectedDate] = useState(today)
   const [memoFilter, setMemoFilter] = useState<MemoFilter>({ mode: 'all' })
-  const [setJump, setSetJump] = useState({ id: 'profile', n: 0 })
-  const [setSection, setSetSection] = useState('profile')
+  const [setJump, setSetJump] = useState({ id: 'workspace', n: 0 })
+  const [setSection, setSetSection] = useState('workspace')
   const [addRequest, setAddRequest] = useState(0)
 
   const [items, setItems] = useState<NoteSummary[]>([])
@@ -52,6 +53,7 @@ export function App() {
   const [conn, setConn] = useState<ConnectionsState | null>(null)
 
   const [note, setNote] = useState<Note | null>(null)
+  const [profileOpen, setProfileOpen] = useState(false)
   // 다른 PC에서 바뀐 내용을 편집기에 다시 불러올 때 올린다 (편집기를 새로 그림)
   const [editorRev, setEditorRev] = useState(0)
   const [linked, setLinked] = useState<NoteSummary[]>([])
@@ -542,6 +544,7 @@ export function App() {
         settingsSection={setSection}
         onView={(v) => void changeView(v)}
         onWorkspace={(id) => void switchWorkspace(id)}
+        onProfile={() => setProfileOpen(true)}
         onMemoFilter={async (f) => {
           await leave()
           setNote(null)
@@ -700,6 +703,17 @@ export function App() {
           confirmLabel="지우기"
           onConfirm={() => void doDelete()}
           onCancel={() => setConfirmDelete(false)}
+        />
+      )}
+      {profileOpen && (
+        <ProfileDialog
+          prefs={prefs}
+          onClose={() => setProfileOpen(false)}
+          onSave={(profile) => {
+            setPrefs({ profile })
+            setProfileOpen(false)
+            say('프로필을 저장했어요')
+          }}
         />
       )}
       {toast && <div className="toast">{toast}</div>}

@@ -7,7 +7,6 @@ import type { MemoFilter } from './MemoView'
 export type View = 'calendar' | 'memo' | 'settings'
 
 export const SETTING_SECTIONS = [
-  { id: 'profile', label: '프로필' },
   { id: 'workspace', label: '워크스페이스' },
   { id: 'menu', label: '메뉴' },
   { id: 'look', label: '화면 · 강조색' },
@@ -81,7 +80,8 @@ export function Workspace({
   onMemoFilter,
   onNewMemo,
   onScratch,
-  onSettings
+  onSettings,
+  onProfile
 }: {
   open: boolean
   view: View
@@ -100,6 +100,7 @@ export function Workspace({
   onNewMemo: () => void
   onScratch: () => void
   onSettings: (section: string) => void
+  onProfile: () => void
 }) {
   const sig = googleSignal(conn)
   const isMemo = (f: MemoFilter) =>
@@ -177,7 +178,7 @@ export function Workspace({
         </button>
       </div>
 
-      <button className="ws-card" onClick={() => onSettings('profile')} title={backupLabel(info?.lastBackup)}>
+      <button className="ws-card" aria-label="프로필 편집" onClick={onProfile} title={backupLabel(info?.lastBackup)}>
         <Avatar prefs={prefs} size={28} />
         <span className="ws-card-t">
           <b>{profileName(prefs)}</b>
