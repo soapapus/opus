@@ -1311,8 +1311,19 @@ span.sig {
 .agenda-open .pin {
   margin-top: 9px;
 }
+/* 펼친 메모는 글 길이만큼 늘어나고, 스크롤은 바깥 메모 목록(.memov-scroll)이 맡는다.
+   안쪽 스크롤을 두면 본문 높이가 150px 기준으로 계산돼 글이 카드 밖으로 넘치고 저장 줄이 글 위에 겹친다. */
 .agenda-open .card.editor {
   min-height: 380px;
+  overflow: visible;
+}
+.agenda-open .ed-body {
+  flex: 1 0 auto;
+  min-height: 150px;
+  overflow: visible;
+}
+.agenda-open .ed-foot {
+  position: static;
 }
 .memov-side .side-h b {
   font-size: 13px;
