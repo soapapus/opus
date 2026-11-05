@@ -82,10 +82,32 @@ export class AppState {
     this.settings.update({ workspaces: this.settings.get().workspaces!.map(w => w.id === id ? { ...w, ...patch } : w) })
   }
 
-  createWorkspace(name: string): AppInfo {
+  private checkName(name: unknown, exceptId?: string): string {
     if (typeof name !== 'string' || !name.trim() || name.trim().length > 40) throw new Error('이름은 1~40자로 입력해 주세요')
+    if (this.settings.get().workspaces!.some(w => w.id !== exceptId && w.name === name.trim())) throw new Error('이미 사용 중인 이름이에요')
+    return name.trim()
+  }
+
+  renameWorkspace(id: string, name: string): AppInfo {
+    const clean = this.checkName(name, id)
     const workspaces = this.settings.get().workspaces!
-    if (workspaces.some(w => w.name === name.trim())) throw new Error('이미 사용 중인 이름이에요')
+    if (!workspaces.some(w => w.id === id)) throw new Error('워크스페이스를 찾을 수 없어요')
+    this.settings.update({ workspaces: workspaces.map(w => w.id === id ? { ...w, name: clean } : w) })
+    return this.info()
+  }
+
+  /** 공간 켜기·끄기. 메모·백업 폴더는 그대로 둔다 */
+  setWorkspaceEnabled(id: string, enabled: boolean): AppInfo {
+    const workspaces = this.settings.get().workspaces!
+    if (!workspaces.some(w => w.id === id)) throw new Error('워크스페이스를 찾을 수 없어요')
+    if (!enabled && id === this.workspace.id) throw new Error('지금 쓰는 공간은 끌 수 없어요. 다른 공간으로 전환한 뒤 꺼 주세요')
+    this.settings.update({ workspaces: workspaces.map(w => w.id === id ? { ...w, enabled } : w) })
+    return this.info()
+  }
+
+  createWorkspace(name: string): AppInfo {
+    this.checkName(name)
+    const workspaces = this.settings.get().workspaces!
     const id = randomUUID()
     const root = join(dirname(this.paths.settingsFile), 'workspaces', id)
     const workspace = { id, name: name.trim(), dataDir: join(root, 'data'), backupDir: join(root, 'backups') }
@@ -98,6 +120,7 @@ export class AppState {
     const next = this.settings.get().workspaces!.find(w => w.id === id)
     if (!next) throw new Error('워크스페이스를 찾을 수 없어요')
     if (next.id === this.workspace.id) return this.info()
+    if (next.enabled === false) throw new Error('꺼진 공간이에요. 설정에서 켠 뒤 전환해 주세요')
     this.backupBeforeMigration(next.dataDir)
     const service = this.openService(next.dataDir)
     try { this.settings.update({ workspaceId: id }) } catch (e) { service.close(); throw e }

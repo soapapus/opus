@@ -44,6 +44,8 @@ export interface WorkspaceInfo {
   name: string
   dataDir: string
   backupDir: string
+  /** false면 꺼진 공간: 전환 목록에서 빠지지만 메모·파일은 그대로 남는다 (없으면 켜짐) */
+  enabled?: boolean
 }
 
 export interface AppInfo {
@@ -99,6 +101,9 @@ export interface Api {
   info(): Promise<AppInfo>
   createWorkspace(name: string): Promise<AppInfo>
   switchWorkspace(id: string): Promise<AppInfo>
+  renameWorkspace(id: string, name: string): Promise<AppInfo>
+  /** 공간 켜기·끄기. 지금 쓰는 공간은 끌 수 없다. 꺼도 데이터는 지우지 않는다 */
+  setWorkspaceEnabled(id: string, enabled: boolean): Promise<AppInfo>
   /** 한국 공휴일 (그 해) */
   holidays(year: number): Promise<import('./holidays').Holiday[]>
   holidayStatus(): Promise<HolidayStatus>

@@ -128,3 +128,18 @@ export const IconMax = (p: P) => (
     <rect x="5.5" y="5.5" width="13" height="13" rx="1.5" />
   </Svg>
 )
+export const IconChevronDown = (p: P) => (
+  <Svg {...p}>
+    <path d="m6 9 6 6 6-6" />
+  </Svg>
+)
+export const IconCheck = (p: P) => (
+  <Svg {...p}>
+    <path d="m5 12.5 4.5 4.5L19 7.5" />
+  </Svg>
+)
+export const IconBolt = (p: P) => (
+  <Svg {...p}>
+    <path d="M13 3 5 14h6l-1 7 8-11h-6l1-7Z" />
+  </Svg>
+)

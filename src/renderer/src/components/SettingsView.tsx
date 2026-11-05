@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { AppInfo, HolidayStatus } from '../../../shared/types'
-import { ACCENTS, DEFAULT_PREFS, MENU_DEFAULT, inkOn, isHex, type CalView, type MenuKey, type Prefs } from '../prefs'
+import { ACCENTS, DEFAULT_PREFS, inkOn, isHex, type CalView, type Prefs } from '../prefs'
+import { MenuList, WorkspaceList } from './SettingsLists'
 import { CalendarConnections } from './CalendarConnections'
 import { SETTING_SECTIONS } from './Shell'
 import { isCloudSyncedPath } from '../../../shared/sync'
@@ -86,6 +87,7 @@ export function SettingsView({
   onBackup,
   onRebuild,
   onConnChanged,
+  onWorkspace,
   holidayStatus,
   onHolidayRefresh
 }: {
@@ -101,14 +103,11 @@ export function SettingsView({
   onBackup: () => void
   onRebuild: () => void
   onConnChanged: () => void
+  /** 다른 공간으로 전환 (앱이 저장하고 다시 연다) */
+  onWorkspace: (id: string) => void
   holidayStatus: HolidayStatus | null
   onHolidayRefresh: () => void
 }) {
-  const [workspaceName, setWorkspaceName] = useState('')
-  const [workspaceMessage, setWorkspaceMessage] = useState('')
-  const [creatingWorkspace, setCreatingWorkspace] = useState(false)
-  const [workspaceList, setWorkspaceList] = useState(info?.workspaces ?? [])
-  useEffect(() => setWorkspaceList(info?.workspaces ?? []), [info])
   const scroller = useRef<HTMLDivElement>(null)
 
   // 왼쪽 목록에서 고른 항목으로 이동
@@ -124,7 +123,7 @@ export function SettingsView({
     if (!box) return
     const onScroll = () => {
       const secs = Array.from(box.querySelectorAll<HTMLElement>('.set-sec'))
-      let cur = secs[0]?.dataset.sec ?? 'look'
+      let cur = secs[0]?.dataset.sec ?? 'workspace'
       for (const s of secs) if (s.offsetTop - box.scrollTop < 140) cur = s.dataset.sec ?? cur
       onSection(cur)
     }
@@ -132,15 +131,6 @@ export function SettingsView({
     return () => box.removeEventListener('scroll', onScroll)
   }, [onSection])
 
-  const names = (k: MenuKey) => (
-    <input
-      className="txt"
-      maxLength={20}
-      value={prefs.menuNames[k] ?? ''}
-      placeholder={MENU_DEFAULT[k]}
-      onChange={(e) => onPrefs({ menuNames: { ...prefs.menuNames, [k]: e.target.value } })}
-    />
-  )
 
   return (
     <div className="setv cardp">
@@ -151,28 +141,23 @@ export function SettingsView({
         <p>Opus의 모든 설정은 이 화면 한곳에 모여 있어요. 바꾸면 바로 적용되고 자동으로 저장돼요.</p>
       </div>
 
-      <Section id="workspace" title="워크스페이스" desc="메모·일정·빠른 메모와 백업을 각각 보관해요. 왼쪽 아래에서 전환할 수 있어요.">
-        <Row label="등록된 워크스페이스"><span>{workspaceList.map(w => w.name).join(' · ')}</span></Row>
-        <form onSubmit={async e => {
-          e.preventDefault()
-          if (creatingWorkspace) return
-          setCreatingWorkspace(true)
-          try {
-            const result = await window.api.createWorkspace(workspaceName)
-            setWorkspaceList(result.workspaces)
-            setWorkspaceName('')
-            setWorkspaceMessage('워크스페이스를 만들었어요')
-            onConnChanged()
-          } catch (error) { setWorkspaceMessage(error instanceof Error ? error.message : '만들지 못했어요') }
-          finally { setCreatingWorkspace(false) }
-        }}>
-          <Row label="새 워크스페이스">
-            <input className="txt" aria-label="새 워크스페이스 이름" maxLength={40} value={workspaceName} onChange={e => setWorkspaceName(e.target.value)} placeholder="예: 업무" />
-            <button className="btn" disabled={creatingWorkspace || !workspaceName.trim()}>만들기</button>
-          </Row>
-          <p role="status">{workspaceMessage}</p>
-        </form>
+      <Section id="workspace" title="워크스페이스" desc="메모·일정·빠른 메모·백업을 공간마다 따로 보관해요. 공간을 꺼도 메모와 파일은 그대로 남아요.">
+        <WorkspaceList info={info} onChanged={onConnChanged} onSwitch={onWorkspace} />
       </Section>
+
+      <Section id="menu" title="메뉴" desc="이름을 눌러 바꾸고(비우면 기본 이름), 오른쪽 스위치로 보이기·숨기기를 정해요. 설정은 항상 보여요.">
+        <MenuList prefs={prefs} onPrefs={onPrefs} />
+        <Row label="날짜 패널 메모 칸" hint="캘린더 오른쪽 아래 메모 칸의 이름">
+          <input
+            className="txt"
+            maxLength={20}
+            value={prefs.dayMemoLabel}
+            placeholder="회의 메모"
+            onChange={(e) => onPrefs({ dayMemoLabel: e.target.value })}
+          />
+        </Row>
+      </Section>
+
       <Section id="look" title="화면 · 강조색" desc={<>바탕은 Paper, 패널은 Ivory, 글자는 Graphite예요. 강조색 하나만 골라서 버튼, 오늘 날짜, 선택 표시에 써요.</>}>
         <Row label="강조색" hint="기본 Lime #C7F12D">
           <div className="accent-grid">
@@ -227,21 +212,6 @@ export function SettingsView({
         </Row>
       </Section>
 
-      <Section id="menu" title="메뉴 이름" desc="왼쪽 메뉴에 보이는 이름을 바꿔요. 20자까지이고, 비우면 기본 이름으로 돌아가요.">
-        <Row label="캘린더">{names('calendar')}</Row>
-        <Row label="메모">{names('memo')}</Row>
-        <Row label="빠른 메모">{names('scratch')}</Row>
-        <Row label="설정">{names('settings')}</Row>
-        <Row label="날짜 패널 메모 칸" hint="캘린더 오른쪽 아래 메모 칸의 이름">
-          <input
-            className="txt"
-            maxLength={20}
-            value={prefs.dayMemoLabel}
-            placeholder="회의 메모"
-            onChange={(e) => onPrefs({ dayMemoLabel: e.target.value })}
-          />
-        </Row>
-      </Section>
 
       <Section id="calendar" title="캘린더" desc="처음 열 때의 보기와 일정 칩 색을 정해요. 칩 색은 종류별로 하나씩이에요.">
         <Row label="기본 보기">

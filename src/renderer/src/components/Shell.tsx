@@ -1,15 +1,15 @@
-import type { ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { AppInfo, ConnectionsState, TagCount } from '../../../shared/types'
-import { IconCalendar, IconGear, IconNotes, IconPlus } from '../icons'
-import { menuName, type Prefs } from '../prefs'
+import { IconCalendar, IconCheck, IconChevronDown, IconGear, IconNotes, IconPlus } from '../icons'
+import { initialOf, menuName, menuShown, profileName, type Prefs } from '../prefs'
 import type { MemoFilter } from './MemoView'
 
 export type View = 'calendar' | 'memo' | 'settings'
 
 export const SETTING_SECTIONS = [
   { id: 'workspace', label: '워크스페이스' },
+  { id: 'menu', label: '메뉴' },
   { id: 'look', label: '화면 · 강조색' },
-  { id: 'menu', label: '메뉴 이름' },
   { id: 'calendar', label: '캘린더' },
   { id: 'google', label: 'Google 캘린더' },
   { id: 'memo', label: '메모 보관 · 백업' },
@@ -43,11 +43,13 @@ export function Rail({ view, prefs, onView, onScratch }: { view: View; prefs: Pr
       <div className="rail-logo" aria-label="Opus">
         O
       </div>
-      {item('calendar', <IconCalendar size={20} />, menuName(prefs, 'calendar'))}
-      {item('memo', <IconNotes size={20} />, menuName(prefs, 'memo'))}
-      <button className="rail-btn" aria-label={menuName(prefs, 'scratch')} title={`${menuName(prefs, 'scratch')} (Ctrl+Shift+Space)`} onClick={onScratch}>
-        <IconQuick />
-      </button>
+      {menuShown(prefs, 'calendar') && item('calendar', <IconCalendar size={20} />, menuName(prefs, 'calendar'))}
+      {menuShown(prefs, 'memo') && item('memo', <IconNotes size={20} />, menuName(prefs, 'memo'))}
+      {menuShown(prefs, 'scratch') && (
+        <button className="rail-btn" aria-label={menuName(prefs, 'scratch')} title={`${menuName(prefs, 'scratch')} (Ctrl+Shift+Space)`} onClick={onScratch}>
+          <IconQuick />
+        </button>
+      )}
       <span className="spacer" />
       {item('settings', <IconGear size={20} />, menuName(prefs, 'settings'))}
     </nav>
@@ -78,7 +80,8 @@ export function Workspace({
   onMemoFilter,
   onNewMemo,
   onScratch,
-  onSettings
+  onSettings,
+  onProfile
 }: {
   open: boolean
   view: View
@@ -97,6 +100,7 @@ export function Workspace({
   onNewMemo: () => void
   onScratch: () => void
   onSettings: (section: string) => void
+  onProfile: () => void
 }) {
   const sig = googleSignal(conn)
   const isMemo = (f: MemoFilter) =>
@@ -104,23 +108,26 @@ export function Workspace({
   return (
     <aside className={`ws cardp ${open ? '' : 'closed'}`} aria-hidden={!open}>
       <div className="cardp-h ws-brand">
-        <div>
-          <b>Opus</b>
-          <span>WORKSPACE</span>
-        </div>
+        <WorkspaceSwitch info={info} onWorkspace={onWorkspace} onManage={() => onSettings('workspace')} />
       </div>
 
       <div className="ws-scroll">
-        <button className={`ws-item ${view === 'calendar' ? 'on' : ''}`} onClick={() => onView('calendar')}>
-          {menuName(prefs, 'calendar')}
-        </button>
-        <button className={`ws-item ${view === 'memo' ? 'on' : ''}`} onClick={() => onView('memo')}>
-          {menuName(prefs, 'memo')}
-          <span className="cnt">{docCount}</span>
-        </button>
-        <button className="ws-item" onClick={onScratch}>
-          {menuName(prefs, 'scratch')}
-        </button>
+        {menuShown(prefs, 'calendar') && (
+          <button className={`ws-item ${view === 'calendar' ? 'on' : ''}`} onClick={() => onView('calendar')}>
+            {menuName(prefs, 'calendar')}
+          </button>
+        )}
+        {menuShown(prefs, 'memo') && (
+          <button className={`ws-item ${view === 'memo' ? 'on' : ''}`} onClick={() => onView('memo')}>
+            {menuName(prefs, 'memo')}
+            <span className="cnt">{docCount}</span>
+          </button>
+        )}
+        {menuShown(prefs, 'scratch') && (
+          <button className="ws-item" onClick={onScratch}>
+            {menuName(prefs, 'scratch')}
+          </button>
+        )}
 
         {view === 'memo' && (
           <>
@@ -171,17 +178,86 @@ export function Workspace({
         </button>
       </div>
 
-      <div className="ws-card">
-        <div className="av">나</div>
-        <div>
-          <select aria-label="워크스페이스 전환" value={info?.workspaceId ?? ''} onChange={e => onWorkspace(e.target.value)}>
-            {info?.workspaces.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-          </select>
-          <button className="ws-item" onClick={() => onSettings('workspace')}>워크스페이스 관리</button>
-          <small>{backupLabel(info?.lastBackup)}</small>
-        </div>
-      </div>
+      <button className="ws-card" aria-label="프로필 편집" onClick={onProfile} title={backupLabel(info?.lastBackup)}>
+        <Avatar prefs={prefs} size={28} />
+        <span className="ws-card-t">
+          <b>{profileName(prefs)}</b>
+          <small>프로필 · 설정</small>
+        </span>
+      </button>
     </aside>
+  )
+}
+
+/** 프로필 사진 (없으면 이름 첫 글자) */
+export function Avatar({ prefs, size }: { prefs: Prefs; size: number }) {
+  const photo = prefs.profile.photo
+  return (
+    <span className="av" style={{ width: size, height: size, fontSize: Math.round(size * 0.42) }} aria-hidden="true">
+      {photo ? <img src={photo} alt="" /> : initialOf(profileName(prefs))}
+    </span>
+  )
+}
+
+/** 사이드바 맨 위: 지금 공간 이름을 누르면 켜진 공간 목록이 열리고, 골라서 바로 전환한다 */
+function WorkspaceSwitch({ info, onWorkspace, onManage }: { info: AppInfo | null; onWorkspace: (id: string) => void; onManage: () => void }) {
+  const [open, setOpen] = useState(false)
+  const box = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const close = (e: MouseEvent) => {
+      if (!box.current?.contains(e.target as Node)) setOpen(false)
+    }
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
+    window.addEventListener('mousedown', close)
+    window.addEventListener('keydown', esc)
+    return () => {
+      window.removeEventListener('mousedown', close)
+      window.removeEventListener('keydown', esc)
+    }
+  }, [open])
+  const cur = info?.workspaces.find((w) => w.id === info.workspaceId)
+  const list = info?.workspaces.filter((w) => w.enabled !== false || w.id === info.workspaceId) ?? []
+  return (
+    <div className="wss" ref={box}>
+      <button className="wss-btn" aria-haspopup="menu" aria-expanded={open} aria-label="워크스페이스 전환" onClick={() => setOpen((o) => !o)}>
+        <span className="wss-mark" aria-hidden="true">
+          {(cur?.name ?? 'O').slice(0, 1)}
+        </span>
+        <span className="wss-name">{cur?.name ?? 'Opus'}</span>
+        <IconChevronDown size={14} />
+      </button>
+      {open && (
+        <div className="wss-menu" role="menu">
+          {list.map((w) => (
+            <button
+              key={w.id}
+              role="menuitemradio"
+              aria-checked={w.id === info?.workspaceId}
+              className={`wss-opt ${w.id === info?.workspaceId ? 'on' : ''}`}
+              onClick={() => {
+                setOpen(false)
+                onWorkspace(w.id)
+              }}
+            >
+              <span className="wss-name">{w.name}</span>
+              {w.id === info?.workspaceId && <IconCheck size={14} />}
+            </button>
+          ))}
+          <div className="wss-sep" />
+          <button
+            role="menuitem"
+            className="wss-opt"
+            onClick={() => {
+              setOpen(false)
+              onManage()
+            }}
+          >
+            워크스페이스 관리
+          </button>
+        </div>
+      )}
+    </div>
   )
 }
 

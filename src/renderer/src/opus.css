@@ -353,42 +353,47 @@ body.resizing .splitter .grip {
   gap: 10px;
   align-items: center;
   margin: 8px;
-  padding: 10px;
+  padding: 8px 10px;
   border-radius: 10px;
   background: var(--well);
   border: 1px solid var(--hair);
+  text-align: left;
+  min-height: 44px;
 }
-.ws-card > div:last-child { min-width: 0; flex: 1; }
-.ws-card select {
-  width: 100%;
+.ws-card:hover {
+  background: var(--surface);
+}
+.ws-card-t {
   min-width: 0;
-  padding: 4px 0;
-  border: 0;
-  background: transparent;
-  color: var(--graphite-c);
-  font: inherit;
-  font-weight: 600;
-}
-.ws-card .av {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: var(--graphite-c);
-  color: var(--accent-on-dark, var(--accent));
-  display: grid;
-  place-items: center;
-  font-weight: 700;
-  font-size: 12px;
-  flex: none;
+  flex: 1;
 }
 .ws-card b {
   display: block;
   font-size: 12.5px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .ws-card small {
   display: block;
   font-size: 11px;
   color: var(--text-3);
+}
+/* 프로필 사진 (없으면 첫 글자) */
+.av {
+  border-radius: 50%;
+  background: var(--graphite-c);
+  color: var(--accent-on-dark, var(--accent));
+  display: inline-grid;
+  place-items: center;
+  font-weight: 700;
+  flex: none;
+  overflow: hidden;
+}
+.av img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 /* 점 · 사각 · 신호등 */
@@ -1737,4 +1742,382 @@ span.sig {
   background: var(--accent);
   border-color: transparent;
   color: var(--accent-ink);
+}
+
+/* ---------- 사이드바 맨 위: 워크스페이스 전환 ---------- */
+.ws-brand {
+  padding: 0 8px;
+}
+.wss {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.wss-btn {
+  width: 100%;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: 1px solid var(--hair2);
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--graphite-c);
+}
+.wss-btn:hover {
+  background: var(--well);
+}
+.wss-mark {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex: none;
+}
+.wss-name {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.wss-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--hair2);
+  box-shadow: 0 8px 24px rgba(34, 38, 33, 0.12);
+}
+.wss-opt {
+  width: 100%;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--graphite-c);
+}
+.wss-opt:hover {
+  background: var(--well);
+}
+.wss-opt.on {
+  font-weight: 600;
+}
+.wss-sep {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--hair);
+}
+
+/* ---------- 설정: 행 목록 (프로필 · 워크스페이스 · 메뉴) ---------- */
+.lst {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--hair);
+}
+.lst:last-child {
+  border-bottom: 0;
+}
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--hair);
+}
+.lst .rows {
+  padding-top: 0;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--hair);
+  min-width: 0;
+}
+.row:last-child {
+  border-bottom: 0;
+}
+.row-mark {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--well);
+  border: 1px solid var(--hair2);
+  color: var(--graphite-c);
+}
+.row.cur .row-mark {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--accent-ink);
+}
+.row-ic {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  border: 1px solid var(--hair2);
+  background: var(--surface);
+  color: var(--graphite-c);
+}
+.row-t {
+  flex: 1;
+  min-width: 0;
+}
+.row-t b {
+  display: block;
+  font-size: 13px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.row-t small,
+.row-hint {
+  display: block;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.row-hint {
+  flex: none;
+}
+.row.off .row-t b,
+.row.off .txt.bare {
+  color: var(--text-3);
+}
+.row-edit {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.row-edit .txt {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+.btn.sm {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 12.5px;
+  flex: none;
+  white-space: nowrap;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.btn.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-2);
+}
+.btn.ghost:hover {
+  background: var(--well);
+}
+.chip.cur {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 8px;
+  flex: none;
+  font-size: 12.5px;
+  font-weight: 600;
+  background: var(--accent);
+  color: var(--accent-ink);
+  white-space: nowrap;
+}
+.txt.bare {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  height: 30px;
+  border-color: transparent;
+  background: transparent;
+  font-weight: 600;
+  font-size: 13px;
+}
+.txt.bare:hover,
+.txt.bare:focus {
+  border-color: var(--hair2);
+  background: var(--surface);
+}
+.txt.bare::placeholder {
+  color: var(--graphite-c);
+}
+.txt.area {
+  height: auto;
+  padding: 6px 10px;
+  resize: vertical;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+}
+/* 켜기·끄기 스위치 (클릭 영역 32px) */
+.tgl {
+  position: relative;
+  flex: none;
+  width: 44px;
+  height: 32px;
+  padding: 0;
+  background: transparent;
+}
+.tgl::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 7px;
+  width: 36px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--hair2);
+  border: 1px solid var(--hair2);
+  transition: background var(--ease);
+}
+.tgl.on::before {
+  background: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 70%, #222621);
+}
+.tgl-k {
+  position: absolute;
+  top: 9px;
+  left: 6px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(34, 38, 33, 0.3);
+  transition: transform var(--ease);
+}
+.tgl.on .tgl-k {
+  transform: translateX(18px);
+}
+.tgl:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.tgl:focus-visible {
+  outline: 2px solid var(--graphite-c);
+  outline-offset: 1px;
+  border-radius: 8px;
+}
+.lst-add {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding-top: 10px;
+}
+.lst-add .txt {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+.lst-note {
+  margin: 8px 0 0;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.lst-acts {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding-top: 10px;
+}
+.ws-brand .wss span {
+  font-size: inherit;
+  letter-spacing: 0;
+}
+.ws-brand .wss .wss-name {
+  color: var(--graphite-c);
+}
+.ws-brand .wss .wss-mark {
+  color: var(--accent-ink);
+}
+.ws-brand .wss-name {
+  display: block;
+}
+.ws-brand .wss-mark {
+  display: grid;
+  font-size: 11px;
+}
+
+/* ---------- 프로필 팝업 (왼쪽 아래 이름 카드) ---------- */
+.prof-dlg {
+  width: min(440px, calc(100vw - 48px));
+  padding: 20px;
+}
+.prof-dlg h2 {
+  font-size: 18px;
+  margin: 0 0 12px;
+}
+.pf-photo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.pf {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  min-width: 0;
+  flex: 1;
+}
+.pf > span {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.pf .txt {
+  width: 100%;
+  height: 32px;
+}
+.pf .txt.area {
+  height: auto;
+}
+.pf-row {
+  display: flex;
+  gap: 10px;
+}
+.pf-note {
+  margin: 8px 0 0 !important;
+  font-size: 11.5px;
+  color: var(--text-3) !important;
+}
+.pf-acts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+}
+.btn-accent.sm {
+  height: 30px;
+  padding: 0 14px;
+  font-size: 12.5px;
 }

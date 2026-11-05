@@ -10,9 +10,10 @@ import { DayPanel } from './components/DayPanel'
 import { MemoEditor } from './components/MemoEditor'
 import { applyMemoFilter, MemoView, type MemoFilter } from './components/MemoView'
 import { SettingsView } from './components/SettingsView'
+import { ProfileDialog } from './components/SettingsLists'
 import { googleSignal, Rail, TopBar, Workspace, type View } from './components/Shell'
 import { Splitter } from './components/Splitter'
-import { menuName, usePrefs, WIDTH, type CalView } from './prefs'
+import { menuName, menuShown, usePrefs, WIDTH, type CalView } from './prefs'
 
 function monthsIn(start: string, end: string): string[] {
   const out: string[] = []
@@ -40,8 +41,8 @@ export function App() {
   const [calFilter, setCalFilter] = useState<CalFilter>('all')
   const [selectedDate, setSelectedDate] = useState(today)
   const [memoFilter, setMemoFilter] = useState<MemoFilter>({ mode: 'all' })
-  const [setJump, setSetJump] = useState({ id: 'look', n: 0 })
-  const [setSection, setSetSection] = useState('look')
+  const [setJump, setSetJump] = useState({ id: 'workspace', n: 0 })
+  const [setSection, setSetSection] = useState('workspace')
   const [addRequest, setAddRequest] = useState(0)
 
   const [items, setItems] = useState<NoteSummary[]>([])
@@ -52,6 +53,7 @@ export function App() {
   const [conn, setConn] = useState<ConnectionsState | null>(null)
 
   const [note, setNote] = useState<Note | null>(null)
+  const [profileOpen, setProfileOpen] = useState(false)
   // 다른 PC에서 바뀐 내용을 편집기에 다시 불러올 때 올린다 (편집기를 새로 그림)
   const [editorRev, setEditorRev] = useState(0)
   const [linked, setLinked] = useState<NoteSummary[]>([])
@@ -347,6 +349,30 @@ export function App() {
     void refresh()
   }
 
+  // ---------- 워크스페이스 전환: 지금 글을 저장하고, 공간을 바꾼 뒤 화면을 다시 연다 ----------
+  const switchWorkspace = async (id: string) => {
+    if (busy || id === info?.workspaceId) return
+    setBusy(true)
+    try {
+      await leave()
+      ++refreshSeq.current
+      await window.api.switchWorkspace(id)
+      window.location.reload()
+    } catch (e) {
+      const m = e instanceof Error ? e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : ''
+      say(m || '전환하지 못했어요. 저장 상태를 확인하고 다시 시도해 주세요')
+      setBusy(false)
+    }
+  }
+
+  // 숨긴 메뉴를 보고 있으면 보이는 첫 메뉴로 옮긴다 (설정은 항상 보임)
+  useEffect(() => {
+    if (view === 'settings' || menuShown(prefs, view)) return
+    const next = (['calendar', 'memo'] as const).find((v) => menuShown(prefs, v)) ?? 'settings'
+    void changeView(next)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, prefs.menuHidden])
+
   // ---------- 시작·종료·단축키 ----------
   useEffect(() => {
     void pickDate(todayStr())
@@ -517,16 +543,8 @@ export function App() {
         docCount={docs.length}
         settingsSection={setSection}
         onView={(v) => void changeView(v)}
-        onWorkspace={async (id) => {
-          if (busy || id === info?.workspaceId) return
-          setBusy(true)
-          try {
-            await leave()
-            ++refreshSeq.current
-            await window.api.switchWorkspace(id)
-            window.location.reload()
-          } catch { say('전환하지 못했어요. 저장 상태를 확인하고 다시 시도해 주세요'); setBusy(false) }
-        }}
+        onWorkspace={(id) => void switchWorkspace(id)}
+        onProfile={() => setProfileOpen(true)}
         onMemoFilter={async (f) => {
           await leave()
           setNote(null)
@@ -651,6 +669,7 @@ export function App() {
 
         {view === 'settings' && (
           <SettingsView
+            onWorkspace={(id) => void switchWorkspace(id)}
             prefs={prefs}
             onPrefs={setPrefs}
             info={info}
@@ -684,6 +703,17 @@ export function App() {
           confirmLabel="지우기"
           onConfirm={() => void doDelete()}
           onCancel={() => setConfirmDelete(false)}
+        />
+      )}
+      {profileOpen && (
+        <ProfileDialog
+          prefs={prefs}
+          onClose={() => setProfileOpen(false)}
+          onSave={(profile) => {
+            setPrefs({ profile })
+            setProfileOpen(false)
+            say('프로필을 저장했어요')
+          }}
         />
       )}
       {toast && <div className="toast">{toast}</div>}
