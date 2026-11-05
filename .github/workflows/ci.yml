@@ -27,6 +27,19 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - name: 화면 자동 테스트 (Playwright)
+        run: |
+          npx playwright install --with-deps chromium
+          npm run e2e
+      - name: 화면 테스트 실패 기록 올리기
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: e2e-report
+          path: |
+            e2e-report/
+            e2e-results/
+          retention-days: 7
 
   windows-build:
     name: windows-build
