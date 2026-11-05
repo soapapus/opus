@@ -36,7 +36,13 @@ jobs:
           TAG="v${VER}-${SHA}"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "ver=$VER" >> "$GITHUB_OUTPUT"
-          if gh release view "$TAG" >/dev/null 2>&1; then echo "skip=true" >> "$GITHUB_OUTPUT"; else echo "skip=false" >> "$GITHUB_OUTPUT"; fi
+          # 이미 올라간 릴리스가 있으면 건너뛴다. 지난번 업로드가 중간에 실패해 '초안(draft)'으로 남았으면 지우고 다시 만든다.
+          DRAFT=$(gh release view "$TAG" --json isDraft -q .isDraft 2>/dev/null || echo none)
+          if [ "$DRAFT" = "true" ]; then
+            gh release delete "$TAG" --yes || true
+            DRAFT=none
+          fi
+          if [ "$DRAFT" = "none" ]; then echo "skip=false" >> "$GITHUB_OUTPUT"; else echo "skip=true" >> "$GITHUB_OUTPUT"; fi
       - uses: actions/setup-node@v5
         if: steps.guard.outputs.skip == 'false'
         with:
@@ -71,10 +77,22 @@ jobs:
         run: |
           EXE=$(ls release/*-setup.exe | head -1)
           sha256sum "$EXE" | awk '{print $1}' > release/SHA256.txt
-          NOTES=$(awk 'NR>1 && /^## /{exit} NR>1{print}' CHANGELOG.md | head -40)
-          gh release create "${{ steps.guard.outputs.tag }}" "$EXE" release/SHA256.txt \
-            --target "$(git rev-parse HEAD)" \
-            --title "Opus ${{ steps.guard.outputs.ver }} ($(git rev-parse --short=7 HEAD))" \
-            --notes "설치본: 아래 Opus-${{ steps.guard.outputs.ver }}-setup.exe 를 받아 실행하세요. 설치된 앱 위에 덮어 설치하면 메모·설정은 그대로 남습니다.
+          # CHANGELOG 맨 위 '## 버전' 항목 하나만 릴리스 설명에 넣는다
+          NOTES=$(awk '/^## /{n++; if (n>1) exit} n==1' CHANGELOG.md | tail -n +2 | head -40)
+          BODY="설치본: 아래 Opus-${{ steps.guard.outputs.ver }}-setup.exe 를 받아 실행하세요. 설치된 앱 위에 덮어 설치하면 메모·설정은 그대로 남습니다.
 
-          $NOTES" --latest
+          $NOTES"
+          TAG="${{ steps.guard.outputs.tag }}"
+          # GitHub API 가 가끔 500 을 내서 초안만 남고 실패한다 (2026-11-05 0.6.0). 남은 초안을 지우고 3번까지 다시 시도한다.
+          for i in 1 2 3; do
+            if gh release create "$TAG" "$EXE" release/SHA256.txt \
+              --target "$(git rev-parse HEAD)" \
+              --title "Opus ${{ steps.guard.outputs.ver }} ($(git rev-parse --short=7 HEAD))" \
+              --notes "$BODY" --latest; then
+              exit 0
+            fi
+            echo "릴리스 올리기 실패 ($i/3), 30초 뒤 다시 시도"
+            sleep 30
+            if [ "$(gh release view "$TAG" --json isDraft -q .isDraft 2>/dev/null || echo none)" = "true" ]; then gh release delete "$TAG" --yes || true; fi
+          done
+          exit 1
