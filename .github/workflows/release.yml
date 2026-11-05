@@ -47,7 +47,23 @@ jobs:
       - if: steps.guard.outputs.skip == 'false'
         run: npm test
       - if: steps.guard.outputs.skip == 'false'
-        run: npx electron-vite build && npx electron-builder --win --x64 --publish never
+        run: npx electron-vite build
+      - if: steps.guard.outputs.skip == 'false'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          key: eb-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: eb-${{ runner.os }}-
+      - name: Windows 설치본 만들기 (내려받기 실패 대비 최대 3번)
+        if: steps.guard.outputs.skip == 'false'
+        run: |
+          for i in 1 2 3; do
+            npx electron-builder --win --x64 --publish never && exit 0
+            echo "설치본 만들기 실패 ($i/3), 30초 뒤 다시 시도"; sleep 30
+          done
+          exit 1
       - name: Releases 에 올리기
         if: steps.guard.outputs.skip == 'false'
         env:
