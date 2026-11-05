@@ -39,7 +39,16 @@ export interface TagCount {
   count: number
 }
 
+export interface WorkspaceInfo {
+  id: string
+  name: string
+  dataDir: string
+  backupDir: string
+}
+
 export interface AppInfo {
+  workspaceId: string
+  workspaces: WorkspaceInfo[]
   appVersion: string
   dataDir: string
   backupDir: string
@@ -80,6 +89,8 @@ export type WindowAction = 'minimize' | 'maximize' | 'close'
 /** preload가 화면에 열어 주는 기능 목록 (window.api) */
 export interface Api {
   info(): Promise<AppInfo>
+  createWorkspace(name: string): Promise<AppInfo>
+  switchWorkspace(id: string): Promise<AppInfo>
   /** 한국 공휴일 (그 해) */
   holidays(year: number): Promise<import('./holidays').Holiday[]>
   holidayStatus(): Promise<HolidayStatus>
@@ -187,3 +198,4 @@ export interface HolidayStatus {
   updated: string | null
   error?: string
 }
+

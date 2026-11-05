@@ -10,7 +10,7 @@ export function installMockApi(): void {
   const d = (day: number) => `${ym}-${p(day)}`
   const iso = (day: number, hm = '10:00') => `${d(day)}T${hm}:00+09:00`
   let seq = 100
-  const notes = new Map<string, Note>()
+  let notes = new Map<string, Note>()
   const mk = (n: Partial<Note> & { title: string }) => {
     const id = n.id ?? `n${seq++}`
     const body = n.body ?? ''
@@ -67,7 +67,26 @@ export function installMockApi(): void {
   }
   const all = () => [...notes.values()]
   const sortCal = (a: Note, b: Note) => (a.date + (a.time ?? '99')).localeCompare(b.date + (b.time ?? '99'))
+  let workspaceId = 'personal'
+  const workspaces = [{ id: 'personal', name: '개인 워크스페이스', dataDir: 'preview/personal', backupDir: 'preview/personal-backups' }]
+  const stores = new Map([['personal', notes]])
+  try {
+    const saved = JSON.parse(sessionStorage.getItem('opus-preview-workspaces') ?? 'null')
+    if (saved) {
+      workspaces.splice(0, workspaces.length, ...saved.workspaces)
+      stores.clear()
+      for (const [id, entries] of saved.stores) stores.set(id, new Map(entries))
+      workspaceId = saved.workspaceId
+      notes = stores.get(workspaceId)!
+      seq = saved.seq
+    }
+  } catch { /* 미리보기 저장값이 없으면 샘플로 시작 */ }
+  const persistWorkspaces = () => sessionStorage.setItem('opus-preview-workspaces', JSON.stringify({
+    workspaceId, workspaces, stores: [...stores].map(([id, records]) => [id, [...records]]), seq
+  }))
   const info = async () => ({
+    workspaceId,
+    workspaces: [...workspaces],
     appVersion: '0.2.0',
     dataDir: 'C:\\Users\\me\\Documents\\LimeDiary-data',
     backupDir: 'C:\\Users\\me\\Documents\\LimeDiary-backups',
@@ -78,6 +97,21 @@ export function installMockApi(): void {
   })
   const api: Api = {
     info,
+    createWorkspace: async (name) => {
+      if (!name.trim() || workspaces.some(w => w.name === name.trim())) throw new Error('이름을 확인해 주세요')
+      const id = `workspace-${seq++}`
+      workspaces.push({ id, name: name.trim(), dataDir: `preview/${id}`, backupDir: `preview/${id}-backups` })
+      stores.set(id, new Map())
+      persistWorkspaces()
+      return info()
+    },
+    switchWorkspace: async (id) => {
+      if (!stores.has(id)) throw new Error('워크스페이스를 찾을 수 없어요')
+      workspaceId = id
+      notes = stores.get(id)!
+      persistWorkspaces()
+      return info()
+    },
     holidays: async (y) => builtinHolidays(y),
     holidayStatus: async () => ({ source: 'builtin', updated: null }),
     refreshHolidays: async () => ({ source: 'builtin', updated: null, error: '미리보기' }),
@@ -149,3 +183,4 @@ export function installMockApi(): void {
   }
   ;(window as unknown as { api: Api }).api = api
 }
+

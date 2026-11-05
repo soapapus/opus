@@ -144,7 +144,10 @@ export function MemoEditor({
   // 열려 있는 동안 "지금 저장" 요청을 받을 수 있게 등록
   useEffect(() => {
     const handle = {
-      flush: doSave,
+      flush: async () => {
+        await doSave()
+        if (dirty.current) throw new Error('메모를 저장하지 못했어요')
+      },
       insertTask: (text: string) => {
         if (!editor) return
         editor
@@ -472,3 +475,4 @@ export function MemoEditor({
     </div>
   )
 }
+

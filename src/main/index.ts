@@ -58,7 +58,7 @@ function external(): ExternalService {
   if (!ext || extDir !== state.dataDir) {
     extDir = state.dataDir
     ext = new ExternalService({
-      secureFile: join(app.getPath('userData'), 'secure.bin'),
+      secureFile: state.workspace.id === 'personal' ? join(app.getPath('userData'), 'secure.bin') : join(app.getPath('userData'), 'workspaces', state.workspace.id, 'secure.bin'),
       cacheFile: join(state.dataDir, 'personal', 'external', 'cache.json'),
       vault,
       openUrl: (u) => shell.openExternal(u)
@@ -117,6 +117,33 @@ function registerIpc(): void {
     ipcMain.handle(`ld:${name}`, (_e, ...args) => fn(...args))
   }
   h('info', () => state.info())
+  h('createWorkspace', (name: string) => state.createWorkspace(name))
+  let switching = false
+  h('switchWorkspace', async (id: string) => {
+    if (switching) throw new Error('워크스페이스를 전환하고 있어요')
+    switching = true
+    try {
+      if (scratchWin && !scratchWin.isDestroyed()) {
+        const scratch = scratchWin
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(() => { ipcMain.removeListener('app:flushed', done); reject(new Error('빠른 메모 저장을 기다리고 있어요. 다시 시도해 주세요')) }, 5000)
+          const done = (event: Electron.IpcMainEvent, error?: string) => {
+            if (event.sender !== scratch.webContents) return
+            clearTimeout(timer)
+            ipcMain.removeListener('app:flushed', done)
+            error ? reject(new Error(error)) : resolve()
+          }
+          ipcMain.on('app:flushed', done)
+          scratch.webContents.send('app:flush')
+        })
+        scratch.destroy()
+        scratchWin = null
+      }
+      const info = state.switchWorkspace(id)
+      ext = null
+      return info
+    } finally { switching = false }
+  })
   h('holidays', (year: number) => {
     if (!holidayCache) loadHolidays()
     return holidaysForYear(year, holidayCache)
@@ -476,3 +503,4 @@ if (!gotLock && !process.env['LD_DATA_DIR']) {
     app.quit()
   })
 }
+

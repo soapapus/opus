@@ -358,6 +358,17 @@ body.resizing .splitter .grip {
   background: var(--well);
   border: 1px solid var(--hair);
 }
+.ws-card > div:last-child { min-width: 0; flex: 1; }
+.ws-card select {
+  width: 100%;
+  min-width: 0;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--graphite-c);
+  font: inherit;
+  font-weight: 600;
+}
 .ws-card .av {
   width: 30px;
   height: 30px;
@@ -1694,3 +1705,4 @@ span.sig {
     display: none;
   }
 }
+

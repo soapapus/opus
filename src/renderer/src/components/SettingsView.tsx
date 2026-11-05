@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { AppInfo, HolidayStatus } from '../../../shared/types'
 import { ACCENTS, DEFAULT_PREFS, MENU_DEFAULT, inkOn, isHex, type CalView, type MenuKey, type Prefs } from '../prefs'
 import { CalendarConnections } from './CalendarConnections'
@@ -103,6 +103,11 @@ export function SettingsView({
   holidayStatus: HolidayStatus | null
   onHolidayRefresh: () => void
 }) {
+  const [workspaceName, setWorkspaceName] = useState('')
+  const [workspaceMessage, setWorkspaceMessage] = useState('')
+  const [creatingWorkspace, setCreatingWorkspace] = useState(false)
+  const [workspaceList, setWorkspaceList] = useState(info?.workspaces ?? [])
+  useEffect(() => setWorkspaceList(info?.workspaces ?? []), [info])
   const scroller = useRef<HTMLDivElement>(null)
 
   // 왼쪽 목록에서 고른 항목으로 이동
@@ -145,6 +150,28 @@ export function SettingsView({
         <p>Opus의 모든 설정은 이 화면 한곳에 모여 있어요. 바꾸면 바로 적용되고 자동으로 저장돼요.</p>
       </div>
 
+      <Section id="workspace" title="워크스페이스" desc="메모·일정·빠른 메모와 백업을 각각 보관해요. 왼쪽 아래에서 전환할 수 있어요.">
+        <Row label="등록된 워크스페이스"><span>{workspaceList.map(w => w.name).join(' · ')}</span></Row>
+        <form onSubmit={async e => {
+          e.preventDefault()
+          if (creatingWorkspace) return
+          setCreatingWorkspace(true)
+          try {
+            const result = await window.api.createWorkspace(workspaceName)
+            setWorkspaceList(result.workspaces)
+            setWorkspaceName('')
+            setWorkspaceMessage('워크스페이스를 만들었어요')
+            onConnChanged()
+          } catch (error) { setWorkspaceMessage(error instanceof Error ? error.message : '만들지 못했어요') }
+          finally { setCreatingWorkspace(false) }
+        }}>
+          <Row label="새 워크스페이스">
+            <input className="txt" aria-label="새 워크스페이스 이름" maxLength={40} value={workspaceName} onChange={e => setWorkspaceName(e.target.value)} placeholder="예: 업무" />
+            <button className="btn" disabled={creatingWorkspace || !workspaceName.trim()}>만들기</button>
+          </Row>
+          <p role="status">{workspaceMessage}</p>
+        </form>
+      </Section>
       <Section id="look" title="화면 · 강조색" desc={<>바탕은 Paper, 패널은 Ivory, 글자는 Graphite예요. 강조색 하나만 골라서 버튼, 오늘 날짜, 선택 표시에 써요.</>}>
         <Row label="강조색" hint="기본 Lime #C7F12D">
           <div className="accent-grid">
@@ -364,3 +391,4 @@ export function SettingsView({
     </div>
   )
 }
+

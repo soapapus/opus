@@ -6,6 +6,8 @@ const call = (name: string, ...args: unknown[]) => ipcRenderer.invoke(`ld:${name
 
 const api: Api = {
   info: () => call('info'),
+  createWorkspace: (name) => call('createWorkspace', name),
+  switchWorkspace: (id) => call('switchWorkspace', id),
   holidays: (y) => call('holidays', y),
   holidayStatus: () => call('holidayStatus'),
   refreshHolidays: (f) => call('refreshHolidays', f),
@@ -49,8 +51,9 @@ const api: Api = {
     const listener = async (): Promise<void> => {
       try {
         await handler()
-      } finally {
         ipcRenderer.send('app:flushed')
+      } catch {
+        ipcRenderer.send('app:flushed', '편집 내용을 저장하지 못했어요')
       }
     }
     ipcRenderer.on('app:flush', listener)
@@ -64,3 +67,4 @@ const api: Api = {
 }
 
 contextBridge.exposeInMainWorld('api', api)
+
