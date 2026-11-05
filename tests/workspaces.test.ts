@@ -91,3 +91,38 @@ describe('워크스페이스 분리', () => {
     expect(state.info().workspaceId).toBe('personal')
   })
 })
+
+describe('워크스페이스 이름 변경 · 켜기/끄기', () => {
+  it('이름을 바꾸면 저장되고, 빈 이름·겹치는 이름은 막는다', () => {
+    const work = state.createWorkspace('업무').workspaces.find(w => w.name === '업무')!
+    expect(state.renameWorkspace(work.id, '  회사 일  ').workspaces.find(w => w.id === work.id)?.name).toBe('회사 일')
+    expect(() => state.renameWorkspace(work.id, ' ')).toThrow('1~40자')
+    expect(() => state.renameWorkspace(work.id, '개인 워크스페이스')).toThrow('이미 사용 중')
+    expect(state.renameWorkspace(work.id, '회사 일').workspaces).toHaveLength(2) // 자기 이름 그대로는 괜찮음
+    state.close()
+    state = new AppState(paths())
+    expect(state.info().workspaces.find(w => w.id === work.id)?.name).toBe('회사 일')
+  })
+
+  it('공간을 꺼도 메모는 남고, 다시 켜면 전환해서 그대로 본다', () => {
+    const work = state.createWorkspace('업무').workspaces.find(w => w.name === '업무')!
+    state.switchWorkspace(work.id)
+    const memo = state.service.create({ kind: 'document', date: '', title: '업무 기록' })
+    state.switchWorkspace('personal')
+    expect(state.setWorkspaceEnabled(work.id, false).workspaces.find(w => w.id === work.id)?.enabled).toBe(false)
+    expect(() => state.switchWorkspace(work.id)).toThrow('꺼진 공간')
+    state.setWorkspaceEnabled(work.id, true)
+    state.switchWorkspace(work.id)
+    expect(state.service.get(memo.id)?.title).toBe('업무 기록')
+  })
+
+  it('지금 쓰는 공간은 끌 수 없다', () => {
+    expect(() => state.setWorkspaceEnabled('personal', false)).toThrow('지금 쓰는 공간')
+    expect(state.info().workspaces[0].enabled).not.toBe(false)
+  })
+
+  it('없는 공간은 이름 변경·켜기/끄기를 할 수 없다', () => {
+    expect(() => state.renameWorkspace('nope', '새 이름')).toThrow('찾을 수 없어요')
+    expect(() => state.setWorkspaceEnabled('nope', true)).toThrow('찾을 수 없어요')
+  })
+})

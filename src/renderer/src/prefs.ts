@@ -147,7 +147,7 @@ export function clamp(v: number, r: { min: number; max: number; def: number }): 
   return Number.isFinite(v) ? Math.min(r.max, Math.max(r.min, Math.round(v))) : r.def
 }
 
-function merge(raw: Record<string, unknown>): Prefs {
+export function mergePrefs(raw: Record<string, unknown>): Prefs {
   const p = { ...DEFAULT_PREFS } as Record<string, unknown>
   for (const [k, v] of Object.entries(raw)) {
     if (!(k in DEFAULT_PREFS)) continue
@@ -191,7 +191,7 @@ export function usePrefs(): [Prefs, (patch: Partial<Prefs>) => void, boolean] {
   useEffect(() => {
     void window.api
       .prefsGet()
-      .then((raw) => setPrefs(merge(raw ?? {})))
+      .then((raw) => setPrefs(mergePrefs(raw ?? {})))
       .catch(() => undefined)
       .finally(() => setReady(true))
   }, [])

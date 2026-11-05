@@ -61,7 +61,12 @@ export function installMockApi(): void {
     google: { provider: 'google', configured: true, connected: true, account: 'me@gmail.com', capabilities: ['일정 읽기'], lastSync: now.toISOString(), calendars: [{ id: 'c', name: '업무', primary: true, selected: true }], cachedEvents: 4 },
     naver: { provider: 'naver', configured: false, connected: false, capabilities: [] }
   }
+  // 화면 설정은 미리보기 탭이 열려 있는 동안 유지 (새로 고침해도 남음)
   let prefs: Record<string, unknown> = { pinned: pinnedPref }
+  try {
+    const saved = JSON.parse(sessionStorage.getItem('opus-preview-prefs') ?? 'null')
+    if (saved && typeof saved === 'object') prefs = saved
+  } catch { /* 저장값이 없으면 기본값 */ }
   const filesChanged = new Set<() => void>()
   const sum = (n: Note): NoteSummary => {
     const { body: _b, source: _s, ...rest } = n
@@ -137,7 +142,11 @@ export function installMockApi(): void {
     refreshHolidays: async () => ({ source: 'builtin', updated: null, error: '미리보기' }),
     useBuiltinHolidays: async () => ({ source: 'builtin', updated: null }),
     prefsGet: async () => prefs,
-    prefsSet: async (patch) => (prefs = { ...prefs, ...patch }),
+    prefsSet: async (patch) => {
+      prefs = { ...prefs, ...patch }
+      try { sessionStorage.setItem('opus-preview-prefs', JSON.stringify(prefs)) } catch { /* 미리보기 저장 실패는 무시 */ }
+      return prefs
+    },
     notesByMonth: async (m) => all().filter((n) => n.kind !== 'document' && n.date.startsWith(m)).sort(sortCal).map(sum),
     notesByDate: async (day) => all().filter((n) => n.kind !== 'document' && n.date === day).sort(sortCal).map(sum),
     documents: async (tag) =>

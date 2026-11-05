@@ -2051,7 +2051,12 @@ span.sig {
 .ws-brand .wss span {
   font-size: inherit;
   letter-spacing: 0;
-  color: inherit;
+}
+.ws-brand .wss .wss-name {
+  color: var(--graphite-c);
+}
+.ws-brand .wss .wss-mark {
+  color: var(--accent-ink);
 }
 .ws-brand .wss-name {
   display: block;
