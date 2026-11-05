@@ -156,7 +156,8 @@ export function installMockApi(): void {
         .map(sum),
     getNote: async (id) => notes.get(id) ?? null,
     createNote: async (input) => {
-      const id = mk({ title: input.title ?? '', kind: input.kind, date: input.date, time: input.time ?? null, tags: input.tags, links: input.links, created: new Date().toISOString() })
+      const id = mk({ title: input.title ?? '', body: input.body, kind: input.kind, date: input.date, time: input.time ?? null, tags: input.tags, links: input.links, created: new Date().toISOString() })
+      persistWorkspaces()
       return notes.get(id)!
     },
     saveNote: async (input) => {
@@ -167,7 +168,9 @@ export function installMockApi(): void {
         conflictCopy = sum(notes.get(id)!)
       }
       Object.assign(n, { title: input.title, body: input.body, tags: input.tags, updated: new Date().toISOString() })
+      n.preview = input.body.replace(/[#*\-[\]]/g, '').replace(/\s+/g, ' ').trim().slice(0, 80)
       if (input.time !== undefined) n.time = input.time
+      persistWorkspaces()
       return { ...n, conflictCopy }
     },
     deleteNote: async (id) => void notes.delete(id),

@@ -333,7 +333,9 @@ export function App() {
   const makeEventFromDoc = async (date: string) => {
     const cur = live.current.note
     if (!cur) return
-    await window.api.createNote({ kind: 'event', date, title: cur.title.trim() || '메모', links: [cur.id] })
+    await editorHandle.current?.flush()
+    const saved = await window.api.getNote(cur.id)
+    await window.api.createNote({ kind: 'event', date, title: saved?.title.trim() || '메모', links: [cur.id] })
     const d = parseDateStr(date)
     say(`${d.month}월 ${d.day}일에 일정을 만들었어요. 메모는 그대로예요`)
     void refresh()
@@ -515,7 +517,6 @@ export function App() {
 
   const wsW = live_w.ws ?? prefs.wsWidth
   const dayW = live_w.day ?? prefs.dayWidth
-  const sideW = live_w.side ?? prefs.sideWidth
   const crumbs = [
     'Opus',
     view === 'calendar' ? menuName(prefs, 'calendar') : view === 'memo' ? menuName(prefs, 'memo') : menuName(prefs, 'settings'),
@@ -526,7 +527,7 @@ export function App() {
   return (
     <div
       className={`app2 view-${view} ${prefs.wsOpen ? '' : 'ws-closed'} ${prefs.dayOpen ? '' : 'day-closed'}`}
-      style={{ ['--ws-w' as string]: `${prefs.wsOpen ? wsW : 0}px`, ['--day-w' as string]: `${dayW}px`, ['--side-w' as string]: `${sideW}px` }}
+      style={{ ['--ws-w' as string]: `${prefs.wsOpen ? wsW : 0}px`, ['--day-w' as string]: `${dayW}px`, ['--side-w' as string]: `${prefs.sideWidth}px` }}
     >
       <Rail view={view} prefs={prefs} onView={(v) => void changeView(v)} onScratch={() => void window.api.scratchOpen()} />
       <TopBar crumbs={crumbs} wsOpen={prefs.wsOpen} onToggleWs={() => toggleRef.current('ws')} />
@@ -633,6 +634,11 @@ export function App() {
 
         {view === 'memo' && (
           <MemoView
+            onScheduleTask={async (id, title, date) => {
+              await editorHandle.current?.flush()
+              await window.api.createNote({ kind: 'event', date, title, links: [id] })
+              await refresh()
+            }}
             filter={memoFilter}
             list={memoList}
             today={today}
@@ -643,26 +649,13 @@ export function App() {
             related={related}
             marks={marks}
             holidays={holidays}
-            splitter={
-              <Splitter
-                label="오른쪽 패널 너비"
-                value={sideW}
-                {...WIDTH.side}
-                dir={-1}
-                onLive={(v) => setLiveW((w) => ({ ...w, side: v }))}
-                onCommit={(v) => {
-                  setLiveW((w) => ({ ...w, side: undefined }))
-                  setPrefs({ sideWidth: v })
-                }}
-              />
-            }
             onSelect={(n) => void openSummary(n)}
             onNew={(tag) => void newMemo(tag)}
             onPin={togglePin}
             onSearchPick={(n) => void openSummary(n)}
             onPickDate={async (d) => {
-              setView('calendar')
               await pickDate(d)
+              setView('calendar')
             }}
           />
         )}

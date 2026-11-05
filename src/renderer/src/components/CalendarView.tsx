@@ -495,6 +495,8 @@ export function MiniMonth({
             key={c.date}
             className={`md ${c.inMonth ? '' : 'other'} ${c.date === today ? 'today' : ''} ${c.date === date ? 'sel' : ''} ${marks?.has(c.date) ? 'mk' : ''} ${(holidays && holidayOf(holidays, c.date)?.off) || wd(c.date) === 0 ? 'red' : ''}`}
             title={holidays ? holidayOf(holidays, c.date)?.label : undefined}
+              data-date={c.date}
+              aria-label={c.date}
             onClick={() => onPick(c.date)}
           >
             {c.day}
