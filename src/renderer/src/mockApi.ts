@@ -1,7 +1,7 @@
 // 브라우저에서 화면만 미리 볼 때 쓰는 가짜 api (Electron 안에서는 쓰지 않는다).
 import { builtinHolidays } from '../../shared/holidays'
 import { changedSince, conflictTitle } from '../../shared/sync'
-import type { Api, ConnectionsState, ExternalEvent, Note, NoteSummary } from '../../shared/types'
+import type { Api, ConnectionsState, ExternalEvent, Note, NoteSummary, WorkspaceInfo } from '../../shared/types'
 
 export function installMockApi(): void {
   if ((window as unknown as { api?: Api }).api) return
@@ -70,7 +70,7 @@ export function installMockApi(): void {
   const all = () => [...notes.values()]
   const sortCal = (a: Note, b: Note) => (a.date + (a.time ?? '99')).localeCompare(b.date + (b.time ?? '99'))
   let workspaceId = 'personal'
-  const workspaces = [{ id: 'personal', name: '개인 워크스페이스', dataDir: 'preview/personal', backupDir: 'preview/personal-backups' }]
+  const workspaces: WorkspaceInfo[] = [{ id: 'personal', name: '개인 워크스페이스', dataDir: 'preview/personal', backupDir: 'preview/personal-backups' }]
   const stores = new Map([['personal', notes]])
   try {
     const saved = JSON.parse(sessionStorage.getItem('opus-preview-workspaces') ?? 'null')
@@ -88,7 +88,7 @@ export function installMockApi(): void {
   }))
   const info = async () => ({
     workspaceId,
-    workspaces: [...workspaces],
+    workspaces: workspaces.map((w) => ({ ...w })),
     appVersion: '0.2.0',
     dataDir: 'C:\\Users\\me\\Documents\\LimeDiary-data',
     backupDir: 'C:\\Users\\me\\Documents\\LimeDiary-backups',
@@ -107,8 +107,26 @@ export function installMockApi(): void {
       persistWorkspaces()
       return info()
     },
+    renameWorkspace: async (id, name) => {
+      const w = workspaces.find((x) => x.id === id)
+      if (!w) throw new Error('워크스페이스를 찾을 수 없어요')
+      if (!name.trim() || name.trim().length > 40) throw new Error('이름은 1~40자로 입력해 주세요')
+      if (workspaces.some((x) => x.id !== id && x.name === name.trim())) throw new Error('이미 사용 중인 이름이에요')
+      w.name = name.trim()
+      persistWorkspaces()
+      return info()
+    },
+    setWorkspaceEnabled: async (id, enabled) => {
+      const w = workspaces.find((x) => x.id === id)
+      if (!w) throw new Error('워크스페이스를 찾을 수 없어요')
+      if (!enabled && id === workspaceId) throw new Error('지금 쓰는 공간은 끌 수 없어요. 다른 공간으로 전환한 뒤 꺼 주세요')
+      w.enabled = enabled
+      persistWorkspaces()
+      return info()
+    },
     switchWorkspace: async (id) => {
       if (!stores.has(id)) throw new Error('워크스페이스를 찾을 수 없어요')
+      if (workspaces.find((x) => x.id === id)?.enabled === false) throw new Error('꺼진 공간이에요. 설정에서 켠 뒤 전환해 주세요')
       workspaceId = id
       notes = stores.get(id)!
       persistWorkspaces()

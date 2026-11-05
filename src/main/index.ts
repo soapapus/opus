@@ -121,6 +121,8 @@ function registerIpc(): void {
   }
   h('info', () => state.info())
   h('createWorkspace', (name: string) => state.createWorkspace(name))
+  h('renameWorkspace', (id: string, name: string) => state.renameWorkspace(id, name))
+  h('setWorkspaceEnabled', (id: string, enabled: boolean) => state.setWorkspaceEnabled(id, !!enabled))
   let switching = false
   h('switchWorkspace', async (id: string) => {
     if (switching) throw new Error('워크스페이스를 전환하고 있어요')

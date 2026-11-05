@@ -4,6 +4,22 @@ import { useCallback, useEffect, useState } from 'react'
 export type CalView = 'month' | 'week' | 'day'
 export type MenuKey = 'calendar' | 'memo' | 'scratch' | 'settings'
 
+/** 내 프로필. 이 PC 설정에만 저장하고 밖으로 보내지 않는다 */
+export interface Profile {
+  name: string
+  role: string
+  intro: string
+  email: string
+  phone: string
+  /** 작게 줄인 사진 (data:image/...), 없으면 이름 첫 글자 */
+  photo: string
+}
+
+export const EMPTY_PROFILE: Profile = { name: '', role: '', intro: '', email: '', phone: '', photo: '' }
+
+/** 끌 수 있는 메뉴 (설정은 항상 보인다) */
+export const HIDEABLE_MENUS: MenuKey[] = ['calendar', 'memo', 'scratch']
+
 export interface Prefs {
   /** 강조색 (#RRGGBB) */
   accent: string
@@ -13,6 +29,9 @@ export interface Prefs {
   fontScale: 'sm' | 'md' | 'lg'
   /** 메뉴 이름 (비우면 기본값) */
   menuNames: Partial<Record<MenuKey, string>>
+  /** 숨긴 메뉴 (데이터는 그대로, 설정은 숨길 수 없음) */
+  menuHidden: MenuKey[]
+  profile: Profile
   calDefaultView: CalView
   /** 월 보기 한 칸에 보여 줄 일정 수 */
   calChipsPerCell: number
@@ -43,6 +62,8 @@ export const DEFAULT_PREFS: Prefs = {
   accentMode: 'soft',
   fontScale: 'md',
   menuNames: {},
+  menuHidden: [],
+  profile: EMPTY_PROFILE,
   calDefaultView: 'month',
   calChipsPerCell: 3,
   showGoogle: true,
@@ -77,6 +98,18 @@ export const MENU_DEFAULT: Record<MenuKey, string> = {
   memo: '메모',
   scratch: '빠른 메모',
   settings: '설정'
+}
+
+export function menuShown(p: Prefs, k: MenuKey): boolean {
+  return k === 'settings' || !p.menuHidden.includes(k)
+}
+
+/** 프로필 이름 (비우면 '나') 과 첫 글자 */
+export function profileName(p: Prefs): string {
+  return p.profile.name.trim() || '나'
+}
+export function initialOf(name: string): string {
+  return Array.from(name.trim() || '나')[0] ?? '나'
 }
 
 export function menuName(p: Prefs, k: MenuKey): string {
@@ -127,6 +160,12 @@ function merge(raw: Record<string, unknown>): Prefs {
   out.wsWidth = clamp(out.wsWidth, WIDTH.ws)
   out.dayWidth = clamp(out.dayWidth, WIDTH.day)
   out.sideWidth = clamp(out.sideWidth, WIDTH.side)
+  out.menuHidden = out.menuHidden.filter((k) => HIDEABLE_MENUS.includes(k))
+  const prof = (raw.profile && typeof raw.profile === 'object' ? raw.profile : {}) as Record<string, unknown>
+  out.profile = Object.fromEntries(
+    Object.keys(EMPTY_PROFILE).map((k) => [k, typeof prof[k] === 'string' ? prof[k] : ''])
+  ) as unknown as Profile
+  if (out.profile.photo && !out.profile.photo.startsWith('data:image/')) out.profile.photo = ''
   return out
 }
 
