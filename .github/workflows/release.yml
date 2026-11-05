@@ -1,0 +1,64 @@
+name: Release
+
+# main 이 바뀌면 Windows 설치본을 만들어 Releases 에 올린다.
+# 자동 머지가 push 이벤트를 만들지 못하는 경우를 대비해 하루 한 번(03:00 KST)도 확인한다.
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: 이미 이 커밋 설치본이 있으면 건너뛰기
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          SHA=$(git rev-parse --short=7 HEAD)
+          VER=$(node -p "require('./package.json').version")
+          TAG="v${VER}-${SHA}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "ver=$VER" >> "$GITHUB_OUTPUT"
+          if gh release view "$TAG" >/dev/null 2>&1; then echo "skip=true" >> "$GITHUB_OUTPUT"; else echo "skip=false" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/setup-node@v4
+        if: steps.guard.outputs.skip == 'false'
+        with:
+          node-version: 22
+          cache: npm
+      - if: steps.guard.outputs.skip == 'false'
+        run: npm ci
+      - if: steps.guard.outputs.skip == 'false'
+        run: npm test
+      - if: steps.guard.outputs.skip == 'false'
+        run: npx electron-vite build && npx electron-builder --win --x64 --publish never
+      - name: Releases 에 올리기
+        if: steps.guard.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          EXE=$(ls release/*-setup.exe | head -1)
+          sha256sum "$EXE" | awk '{print $1}' > release/SHA256.txt
+          NOTES=$(awk 'NR>1 && /^## /{exit} NR>1{print}' CHANGELOG.md | head -40)
+          gh release create "${{ steps.guard.outputs.tag }}" "$EXE" release/SHA256.txt \
+            --target "$(git rev-parse HEAD)" \
+            --title "Opus ${{ steps.guard.outputs.ver }} ($(git rev-parse --short=7 HEAD))" \
+            --notes "설치본: 아래 Opus-${{ steps.guard.outputs.ver }}-setup.exe 를 받아 실행하세요. 설치된 앱 위에 덮어 설치하면 메모·설정은 그대로 남습니다.
+
+          $NOTES" --latest

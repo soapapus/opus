@@ -1,0 +1,151 @@
+// 브라우저에서 화면만 미리 볼 때 쓰는 가짜 api (Electron 안에서는 쓰지 않는다).
+import { builtinHolidays } from '../../shared/holidays'
+import type { Api, ConnectionsState, ExternalEvent, Note, NoteSummary } from '../../shared/types'
+
+export function installMockApi(): void {
+  if ((window as unknown as { api?: Api }).api) return
+  const now = new Date()
+  const p = (n: number) => String(n).padStart(2, '0')
+  const ym = `${now.getFullYear()}-${p(now.getMonth() + 1)}`
+  const d = (day: number) => `${ym}-${p(day)}`
+  const iso = (day: number, hm = '10:00') => `${d(day)}T${hm}:00+09:00`
+  let seq = 100
+  const notes = new Map<string, Note>()
+  const mk = (n: Partial<Note> & { title: string }) => {
+    const id = n.id ?? `n${seq++}`
+    const body = n.body ?? ''
+    notes.set(id, {
+      id,
+      title: n.title,
+      kind: n.kind ?? 'event',
+      date: n.date ?? '',
+      time: n.time ?? null,
+      links: n.links ?? [],
+      classified: true,
+      tags: n.tags ?? [],
+      preview: body.replace(/[#*\-[\]]/g, '').replace(/\s+/g, ' ').trim().slice(0, 80),
+      created: n.created ?? iso(1),
+      updated: n.updated ?? n.created ?? iso(1),
+      body,
+      source: 'local'
+    })
+    return id
+  }
+  const today = now.getDate()
+  mk({ title: '생산 주간회의', date: d(today), time: '14:00', body: '- [ ] 생산 일정 확인\n- [ ] 품질 이슈 공유\n- [x] 지난주 출하 실적 정리', updated: iso(today, '15:10') })
+  mk({ title: '1:1 면담', date: d(today), time: '16:30' })
+  mk({ title: '오전 출하 검수', date: d(Math.max(1, today - 2)), time: '09:00' })
+  mk({ title: '공정 개선 아이디어 정리', kind: 'note', date: d(Math.max(1, today - 1)) })
+  mk({ title: '설비 점검', date: d(Math.min(28, today + 1)), time: '10:00' })
+  mk({ title: '사이드 프로젝트 데모', date: d(Math.min(28, today + 2)), time: '15:00' })
+  mk({ title: '월간 보고 마감', date: d(Math.min(28, today + 6)), time: '18:00' })
+  mk({ title: '팀 회식', date: d(Math.min(28, today + 7)), time: '19:00' })
+  mk({ title: '헬스', kind: 'note', date: d(Math.min(28, today + 3)) })
+  mk({ title: '자격증 공부 2시간', kind: 'note', date: d(Math.max(1, today - 4)) })
+  mk({ title: '외부 교육', date: d(Math.max(1, today - 6)), time: '13:00' })
+  const doc1 = mk({ title: '2026 하반기 성과 정리', kind: 'document', tags: ['성과'], body: '## 핵심\n- 반복 업무 자동화 — 주 7건 수작업 → 0건\n- 보고서 자동 작성', updated: iso(today, '11:20') })
+  mk({ title: '사이드 프로젝트 아이디어', kind: 'document', tags: ['사이드 프로젝트'], body: '사진 찍으면 자동 분류', updated: iso(Math.max(1, today - 2), '14:00') })
+  mk({ title: '읽을거리', kind: 'document', tags: ['나중에 읽기'], body: 'Electron 보안 체크리스트, SQLite FTS5 정리', updated: iso(Math.max(1, today - 3), '09:30') })
+  mk({ title: '면담 준비 메모', kind: 'document', tags: ['성과'], body: '올해 한 일 3가지, 내년 목표', updated: iso(Math.max(1, today - 1), '21:05') })
+  mk({ title: '주간 회고', kind: 'document', tags: [], body: '이번 주 잘한 것 / 아쉬운 것', updated: iso(Math.max(1, today - 5), '18:00') })
+  const pinnedPref = [doc1]
+
+  const ext: ExternalEvent[] = [
+    { id: 'g1', provider: 'google', calendarId: 'c', calendarName: '업무', title: '협력사 미팅', date: d(Math.min(28, today + 1)), endDate: d(Math.min(28, today + 1)), time: '11:00', allDay: false },
+    { id: 'g2', provider: 'google', calendarId: 'c', calendarName: '개인', title: '가족 생일', date: d(Math.min(28, today + 4)), endDate: d(Math.min(28, today + 4)), time: null, allDay: true },
+    { id: 'g3', provider: 'google', calendarId: 'c', calendarName: '업무', title: '출장', date: d(Math.min(26, today + 9)), endDate: d(Math.min(28, today + 11)), time: null, allDay: true },
+    { id: 'g4', provider: 'google', calendarId: 'c', calendarName: '업무', title: '분기 리뷰', date: d(today), endDate: d(today), time: '10:00', allDay: false }
+  ]
+  const conn: ConnectionsState = {
+    google: { provider: 'google', configured: true, connected: true, account: 'me@gmail.com', capabilities: ['일정 읽기'], lastSync: now.toISOString(), calendars: [{ id: 'c', name: '업무', primary: true, selected: true }], cachedEvents: 4 },
+    naver: { provider: 'naver', configured: false, connected: false, capabilities: [] }
+  }
+  let prefs: Record<string, unknown> = { pinned: pinnedPref }
+  const sum = (n: Note): NoteSummary => {
+    const { body: _b, source: _s, ...rest } = n
+    return rest
+  }
+  const all = () => [...notes.values()]
+  const sortCal = (a: Note, b: Note) => (a.date + (a.time ?? '99')).localeCompare(b.date + (b.time ?? '99'))
+  const info = async () => ({
+    appVersion: '0.2.0',
+    dataDir: 'C:\\Users\\me\\Documents\\LimeDiary-data',
+    backupDir: 'C:\\Users\\me\\Documents\\LimeDiary-backups',
+    lastBackup: now.toISOString(),
+    totalNotes: notes.size,
+    documentCount: all().filter((n) => n.kind === 'document').length,
+    scratchShortcut: 'CommandOrControl+Shift+Space'
+  })
+  const api: Api = {
+    info,
+    holidays: async (y) => builtinHolidays(y),
+    holidayStatus: async () => ({ source: 'builtin', updated: null }),
+    refreshHolidays: async () => ({ source: 'builtin', updated: null, error: '미리보기' }),
+    useBuiltinHolidays: async () => ({ source: 'builtin', updated: null }),
+    prefsGet: async () => prefs,
+    prefsSet: async (patch) => (prefs = { ...prefs, ...patch }),
+    notesByMonth: async (m) => all().filter((n) => n.kind !== 'document' && n.date.startsWith(m)).sort(sortCal).map(sum),
+    notesByDate: async (day) => all().filter((n) => n.kind !== 'document' && n.date === day).sort(sortCal).map(sum),
+    documents: async (tag) =>
+      all()
+        .filter((n) => n.kind === 'document' && (!tag || n.tags.includes(tag)))
+        .sort((a, b) => b.updated.localeCompare(a.updated))
+        .map(sum),
+    getNote: async (id) => notes.get(id) ?? null,
+    createNote: async (input) => {
+      const id = mk({ title: input.title ?? '', kind: input.kind, date: input.date, time: input.time ?? null, tags: input.tags, links: input.links, created: new Date().toISOString() })
+      return notes.get(id)!
+    },
+    saveNote: async (input) => {
+      const n = notes.get(input.id)!
+      Object.assign(n, { title: input.title, body: input.body, tags: input.tags, updated: new Date().toISOString() })
+      if (input.time !== undefined) n.time = input.time
+      return n
+    },
+    deleteNote: async (id) => void notes.delete(id),
+    discardIfEmpty: async (id) => {
+      const n = notes.get(id)
+      if (n && !n.title.trim() && !n.body.trim()) {
+        notes.delete(id)
+        return true
+      }
+      return false
+    },
+    search: async (q) => all().filter((n) => (n.title + n.body).includes(q)).map(sum),
+    tags: async () => {
+      const m = new Map<string, number>()
+      for (const n of all()) if (n.kind === 'document') for (const t of n.tags) m.set(t, (m.get(t) ?? 0) + 1)
+      return [...m.entries()].map(([tag, count]) => ({ tag, count }))
+    },
+    setKind: async (id, kind) => {
+      const n = notes.get(id)!
+      n.kind = kind
+      return n
+    },
+    link: async () => undefined,
+    unlink: async () => undefined,
+    linksOf: async () => [],
+    scratchGet: async () => notes.values().next().value as Note,
+    scratchSave: async () => undefined,
+    scratchToDocument: async () => null,
+    scratchHide: async () => undefined,
+    scratchOpen: async () => undefined,
+    connections: async () => conn,
+    externalByMonth: async (m) => ext.filter((e) => e.date.startsWith(m)),
+    saveKeys: async () => conn,
+    connect: async () => conn,
+    disconnect: async () => conn,
+    setCalendars: async () => conn,
+    syncExternal: async () => conn,
+    exportEvent: async () => '',
+    chooseDataDir: async () => null,
+    chooseBackupDir: async () => null,
+    runBackup: info,
+    rebuildIndex: info,
+    openDataDir: async () => undefined,
+    windowControl: async () => undefined,
+    onFlushRequest: () => () => undefined,
+    onInfoChanged: () => () => undefined
+  }
+  ;(window as unknown as { api: Api }).api = api
+}

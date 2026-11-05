@@ -1,0 +1,13 @@
+// 인터넷 없이도 같은 글꼴이 나오도록 앱 안에 글꼴을 넣어 둔다.
+import '@fontsource/noto-sans-kr/korean-400.css'
+import '@fontsource/noto-sans-kr/korean-500.css'
+import '@fontsource/noto-sans-kr/korean-700.css'
+import '@fontsource/noto-sans-kr/latin-400.css'
+import '@fontsource/noto-sans-kr/latin-500.css'
+import '@fontsource/noto-sans-kr/latin-700.css'
+import '@fontsource/noto-serif-kr/korean-400.css'
+import '@fontsource/noto-serif-kr/korean-600.css'
+import '@fontsource/noto-serif-kr/korean-700.css'
+import '@fontsource/noto-serif-kr/latin-400.css'
+import '@fontsource/noto-serif-kr/latin-600.css'
+import '@fontsource/noto-serif-kr/latin-700.css'

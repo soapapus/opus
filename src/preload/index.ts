@@ -1,0 +1,66 @@
+// 화면(renderer)이 쓸 수 있는 기능만 골라서 안전하게 열어 주는 다리.
+import { contextBridge, ipcRenderer } from 'electron'
+import type { Api } from '../shared/types'
+
+const call = (name: string, ...args: unknown[]) => ipcRenderer.invoke(`ld:${name}`, ...args)
+
+const api: Api = {
+  info: () => call('info'),
+  holidays: (y) => call('holidays', y),
+  holidayStatus: () => call('holidayStatus'),
+  refreshHolidays: (f) => call('refreshHolidays', f),
+  useBuiltinHolidays: () => call('useBuiltinHolidays'),
+  prefsGet: () => call('prefsGet'),
+  prefsSet: (patch) => call('prefsSet', patch),
+  notesByMonth: (m) => call('notesByMonth', m),
+  notesByDate: (d) => call('notesByDate', d),
+  documents: (tag) => call('documents', tag),
+  getNote: (id) => call('getNote', id),
+  createNote: (input) => call('createNote', input),
+  saveNote: (input) => call('saveNote', input),
+  deleteNote: (id) => call('deleteNote', id),
+  discardIfEmpty: (id) => call('discardIfEmpty', id),
+  search: (q) => call('search', q),
+  tags: () => call('tags'),
+  setKind: (id, kind) => call('setKind', id, kind),
+  link: (a, b) => call('link', a, b),
+  unlink: (a, b) => call('unlink', a, b),
+  linksOf: (id) => call('linksOf', id),
+  scratchGet: () => call('scratchGet'),
+  scratchSave: (body) => call('scratchSave', body),
+  scratchToDocument: () => call('scratchToDocument'),
+  scratchHide: () => call('scratchHide'),
+  scratchOpen: () => call('scratchOpen'),
+  connections: () => call('connections'),
+  externalByMonth: (m) => call('externalByMonth', m),
+  saveKeys: (p, id, secret) => call('saveKeys', p, id, secret),
+  connect: (p, write) => call('connect', p, write),
+  disconnect: (p) => call('disconnect', p),
+  setCalendars: (ids) => call('setCalendars', ids),
+  syncExternal: () => call('syncExternal'),
+  exportEvent: (id, p) => call('exportEvent', id, p),
+  chooseDataDir: () => call('chooseDataDir'),
+  chooseBackupDir: () => call('chooseBackupDir'),
+  runBackup: () => call('runBackup'),
+  rebuildIndex: () => call('rebuildIndex'),
+  openDataDir: () => call('openDataDir'),
+  windowControl: (a) => call('windowControl', a),
+  onFlushRequest(handler) {
+    const listener = async (): Promise<void> => {
+      try {
+        await handler()
+      } finally {
+        ipcRenderer.send('app:flushed')
+      }
+    }
+    ipcRenderer.on('app:flush', listener)
+    return () => ipcRenderer.removeListener('app:flush', listener)
+  },
+  onInfoChanged(handler) {
+    const listener = (): void => handler()
+    ipcRenderer.on('app:info-changed', listener)
+    return () => ipcRenderer.removeListener('app:info-changed', listener)
+  }
+}
+
+contextBridge.exposeInMainWorld('api', api)

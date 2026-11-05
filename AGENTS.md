@@ -1,0 +1,78 @@
+# AGENTS.md — Opus 작업 규칙
+
+이 파일은 이 저장소에서 일하는 모든 AI 에이전트(Claude, Codex, Copilot, Cursor 등)와 사람이 먼저 읽는 규칙이다.
+주인(soapapus)은 PR 하나하나를 확인하지 않는다. **자동 검사를 통과한 PR은 자동으로 main에 머지되고, 주인은 Releases의 설치본만 본다.**
+그래서 이 규칙을 지키는 책임은 PR을 올리는 에이전트에게 있다.
+
+## 1. 이 앱은 무엇인가
+
+- 이름은 **Opus**. 'Lime Diary', 'LimeDiary', '라임 다이어리'라고 부르지 않는다. (코드 안 옛 이름은 데이터 호환용으로만 남아 있다.)
+- 주인 한 명이 쓰는 개인 앱이다. 많아야 친구 몇 명. 자기 성과·일정·메모를 정리한다.
+- Windows 데스크톱 앱(Electron). 장기적으로 폰에서도 쓰고 싶어 한다.
+- 메뉴: 캘린더, 메모(Agenda 형태), 빠른 메모, 설정.
+- 화면 글자는 모두 한국어. 짧고 쉬운 말로 쓴다.
+
+## 2. 구조
+
+| 위치 | 내용 |
+|---|---|
+| `src/main/` | Electron 메인 프로세스. `index.ts`(창·IPC), `settings.ts`, `storage/`(마크다운 메모 파일), `index/`(SQLite FTS 검색 색인, 다시 만들 수 있음), `backup/`(zip 백업), `external/`(Google 캘린더 읽기, OAuth PKCE, 키는 safeStorage) |
+| `src/preload/` | `window.api` 다리. IPC 이름은 `ld:<name>` |
+| `src/shared/` | 메인·화면 공용 타입과 순수 함수 (`types.ts`, `calendar.ts`, `holidays.ts` 등) |
+| `src/renderer/src/` | React 19 화면. `App.tsx`, `components/`, `prefs.ts`(화면 설정·강조색), `opus.css`(카드 레이아웃), `styles.css`(기본) |
+| `src/renderer/src/mockApi.ts` | `window.api`가 없을 때(브라우저 미리보기) 쓰는 가짜 데이터 |
+| `tests/` | vitest |
+
+IPC를 새로 만들면 `src/shared/types.ts`의 `Api`, `src/preload/index.ts`, `src/main/index.ts`, `mockApi.ts` 네 곳을 같이 고친다.
+
+## 3. 명령
+
+```
+npm ci
+npm run typecheck   # tsc --noEmit
+npm test            # vitest (시간대는 vitest.config.ts에서 Asia/Seoul로 고정)
+npm run build       # electron-vite build
+npm run dist        # Windows 설치본 (Windows에서, 또는 wine이 있는 Linux에서)
+```
+
+PR을 올리기 전에 `typecheck`, `test`, `build` 셋 다 로컬에서 통과시킨다.
+
+## 4. 일하는 방식 (자동 머지)
+
+1. `main`에 직접 push 하지 않는다. 브랜치 이름은 `<에이전트>/<주제>` (예: `claude/memo-archive`, `codex/holiday-fix`).
+2. 시작 전에 최신 `main`에서 브랜치를 딴다. 충돌이 나면 `main` 위로 rebase 해서 스스로 푼다. 다른 에이전트의 브랜치는 건드리지 않는다.
+3. PR은 작게, 한 가지 목적만. 제목은 한국어로 무엇이 바뀌는지 한 줄.
+4. PR 본문에 적을 것: 바뀐 점, 주인이 화면에서 확인할 방법, 테스트 결과.
+5. PR을 열면 **자동 머지를 켠다**: `gh pr merge <번호> --auto --squash`. (저장소 설정상 검사가 모두 통과해야만 머지된다.)
+6. 검사가 실패하면 스스로 고쳐서 다시 push 한다. **테스트를 지우거나, 건너뛰거나(`skip`/`only`), 기대값을 억지로 바꿔서 통과시키지 않는다.**
+7. 기능을 추가하거나 동작을 바꾸면 그 동작을 확인하는 테스트를 같이 넣는다.
+8. 사용자 눈에 보이는 변경이면 `package.json`의 `version`을 올리고(작은 수정 0.x.**y**, 기능 0.**x**.0) `CHANGELOG.md` 맨 위에 한 줄씩 적는다.
+9. 주인의 판단이 필요한 애매한 결정(목표가 바뀌는 것, 데이터를 지우는 것, 외부 서비스 추가)은 추측해서 만들지 말고 GitHub Issue에 `question` 라벨로 질문을 남기고 그 부분은 빼고 진행한다.
+
+## 5. 제품 규칙 (주인이 정한 것)
+
+### 화면
+- 기본색: Paper `#F5F4EE`, Ivory `#E9EAE5`(바탕 캔버스), Graphite `#222621`(아이콘 줄·글자). 강조색 기본 Lime `#C7F12D`, 설정에서 여러 강조색 중 고른다.
+- 레이아웃: Ivory 바탕 위에 둥근 카드(아이콘 줄, 사이드바, 본문, 오른쪽 패널)가 10px 간격으로 떠 있다. 구분은 선보다 간격·옅은 테두리·부드러운 그림자로. 카드 머리 높이는 통일. 카드마다 따로 스크롤. Linear 같은 깔끔한 느낌.
+- 색은 CSS 변수(`--accent`, `--accent-ink`, `--accent-on-dark` 등)로만 쓴다. 강조색이 어두운 색(Graphite)일 때도 글자가 보여야 한다.
+- **설정 항목은 설정 페이지 한 곳에만** 둔다(번호 섹션 형식). 다른 화면에 설정 스위치를 흩어 놓지 않는다.
+
+### 데이터
+- 메모는 사용자의 마크다운 파일이다. 저장 형식을 바꾸면 예전 파일도 그대로 읽혀야 한다. 사용자 데이터 폴더는 `%APPDATA%\Opus`.
+- **메모와 백업은 영원히 쌓이는 기록이다.** 메모를 영구 삭제하는 기능, 오래된 백업을 지우는 기능을 새로 만들지 않는다. (결정됨, 아직 구현 전: 삭제 대신 '보관', 백업 개수 제한 없애기. 휴지통 기능은 만들지 않는다.)
+- **회사 Google 캘린더 일정은 Opus에 저장하거나 백업하지 않는다.** Google은 읽기 전용으로 화면에 보여 주기만 한다. 사용자가 직접 쓴 일정·메모만 백업된다.
+- Google 캘린더는 읽기 전용(`calendar.readonly`). 쓰기 권한을 요청하지 않는다. 네이버 연동은 숨김.
+- 한국 공휴일: Google 공개 공휴일 달력을 하루 한 번 받고, 실패하면 `src/shared/holidays.ts` 내장 규칙.
+
+### 보안
+- 비밀번호, 토큰, OAuth 클라이언트 비밀, 개인 메모 내용, 실제 사람·회사 이름을 저장소에 넣지 않는다. 키는 앱 안에서 입력받아 Electron `safeStorage`로 PC에만 저장한다.
+- 이 저장소는 공개(Public)다. 샘플·테스트 데이터는 지어낸 일반 예시만 쓴다.
+- 네트워크로 받는 코드나 원격 스크립트를 실행하는 기능을 넣지 않는다.
+
+## 6. 하지 말 것
+
+- `main` 직접 push, 강제 push, 다른 에이전트 브랜치 rebase
+- 테스트 끄기·지우기로 검사 통과시키기
+- `.github/workflows/`의 검사를 약하게 바꾸기 (검사를 추가하는 것은 괜찮다)
+- 의존성 대량 업그레이드를 기능 PR에 섞기 (따로 PR)
+- 주인에게 확인을 요청하는 PR 댓글 남기기 — 주인은 PR을 보지 않는다. 필요한 질문은 Issue로.
