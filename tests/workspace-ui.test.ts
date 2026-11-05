@@ -18,4 +18,3 @@ describe('사이드바 메뉴', () => {
     expect(html).toContain('캘린더')
   })
 })
-

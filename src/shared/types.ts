@@ -198,4 +198,3 @@ export interface HolidayStatus {
   updated: string | null
   error?: string
 }
-

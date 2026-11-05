@@ -46,4 +46,3 @@ export class SettingsStore {
     writeFileSync(this.file, JSON.stringify(this.data, null, 2), 'utf8')
   }
 }
-

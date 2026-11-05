@@ -183,4 +183,3 @@ export function installMockApi(): void {
   }
   ;(window as unknown as { api: Api }).api = api
 }
-

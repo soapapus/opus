@@ -27,6 +27,19 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - name: 화면 자동 테스트 (Playwright)
+        run: |
+          npx playwright install --with-deps chromium
+          npm run e2e
+      - name: 화면 테스트 실패 기록 올리기
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: e2e-report
+          path: |
+            e2e-report/
+            e2e-results/
+          retention-days: 7
 
   windows-build:
     name: windows-build
@@ -40,7 +53,23 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npx electron-vite build
-      - run: npx electron-builder --win --x64 --publish never
+      # electron-builder 가 내려받는 도구(electron, icons, nsis)를 저장해 두고 재사용한다
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          key: eb-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: eb-${{ runner.os }}-
+      # 도구 내려받기가 GitHub 쪽 504 로 끊기는 일이 있어, 설치본 만들기만 최대 3번 시도한다 (테스트는 다시 돌리지 않음)
+      - name: Windows 설치본 만들기
+        shell: bash
+        run: |
+          for i in 1 2 3; do
+            npx electron-builder --win --x64 --publish never && exit 0
+            echo "설치본 만들기 실패 ($i/3), 30초 뒤 다시 시도"; sleep 30
+          done
+          exit 1
       - uses: actions/upload-artifact@v5
         with:
           name: Opus-setup-pr

@@ -503,4 +503,3 @@ if (!gotLock && !process.env['LD_DATA_DIR']) {
     app.quit()
   })
 }
-

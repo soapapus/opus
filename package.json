@@ -10,7 +10,8 @@
     "build": "electron-vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "dist": "electron-vite build && electron-builder --win --x64"
+    "dist": "electron-vite build && electron-builder --win --x64",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "fflate": "^0.8.2"
@@ -18,6 +19,7 @@
   "devDependencies": {
     "@fontsource/noto-sans-kr": "^5.3.1",
     "@fontsource/noto-serif-kr": "^5.3.1",
+    "@playwright/test": "1.63.0",
     "@tiptap/extension-task-item": "^3.32.2",
     "@tiptap/extension-task-list": "^3.32.2",
     "@tiptap/markdown": "^3.32.2",

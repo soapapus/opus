@@ -228,4 +228,3 @@ export function TopBar({ crumbs, wsOpen, onToggleWs }: { crumbs: string[]; wsOpe
     </div>
   )
 }
-

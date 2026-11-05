@@ -67,4 +67,3 @@ const api: Api = {
 }
 
 contextBridge.exposeInMainWorld('api', api)
-

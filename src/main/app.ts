@@ -165,4 +165,3 @@ export class AppState {
     this.service.close()
   }
 }
-

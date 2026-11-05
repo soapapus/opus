@@ -91,4 +91,3 @@ describe('워크스페이스 분리', () => {
     expect(state.info().workspaceId).toBe('personal')
   })
 })
-

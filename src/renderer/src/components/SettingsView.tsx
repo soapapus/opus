@@ -391,4 +391,3 @@ export function SettingsView({
     </div>
   )
 }
-
