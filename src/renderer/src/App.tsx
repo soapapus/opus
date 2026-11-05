@@ -634,6 +634,19 @@ export function App() {
 
         {view === 'memo' && (
           <MemoView
+            onDeleteSelected={async (ids) => {
+              const targets = [...new Set(ids)].filter(id => docs.some(n => n.id === id))
+              if (targets.includes(live.current.selectedId ?? '')) await editorHandle.current?.flush()
+              const removed: string[] = []
+              for (const id of targets) {
+                try { await window.api.deleteNote(id); removed.push(id) } catch { /* 실패한 항목은 선택을 유지해 재시도 */ }
+              }
+              if (removed.includes(live.current.selectedId ?? '')) setNote(null)
+              setDocs(current => current.filter(n => !removed.includes(n.id)))
+              if (removed.some(id => prefs.pinned.includes(id))) setPrefs({ pinned: prefs.pinned.filter(id => !removed.includes(id)) })
+              try { await refresh() } catch { say('메모는 지웠지만 목록을 새로 읽지 못했어요. 잠시 후 다시 확인해 주세요.') }
+              return removed
+            }}
             onScheduleTask={async (id, title, date) => {
               await editorHandle.current?.flush()
               await window.api.createNote({ kind: 'event', date, title, links: [id] })

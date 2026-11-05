@@ -154,6 +154,14 @@ test.describe('두 PC 동기화', () => {
     const errors = await openApp(page)
     await goMemo(page)
     await page.locator('.arow-b').first().click()
+    // 자동 저장·창 blur 타이밍에 관계없이 저장 중 충돌을 재현한다.
+    await page.evaluate(() => {
+      const save = window.api.saveNote
+      let release!: () => void
+      const pending = new Promise<void>(resolve => { release = resolve })
+      ;(window as unknown as { __releaseSave: () => void }).__releaseSave = release
+      window.api.saveNote = async input => { await pending; return save(input) }
+    })
     const title = await page.locator('.agenda-open .ed-title').inputValue()
     await page.locator('.agenda-open .tiptap').click()
     await page.keyboard.press('Control+End')
@@ -161,6 +169,7 @@ test.describe('두 PC 동기화', () => {
     await otherPc(page, title, '회사 PC에서 먼저 저장한 내용')
     // 쓰는 중인 글은 덮어쓰지 않는다
     await expect(page.locator('.agenda-open .tiptap')).toContainText('집 PC에서 쓰는 중')
+    await page.evaluate(() => (window as unknown as { __releaseSave: () => void }).__releaseSave())
     await expect(page.getByText(/다른 PC에서 고친 내용은 '.*' 메모로 남겼어요/)).toBeVisible()
     await expect(page.locator('.agenda-open .tiptap')).toContainText('집 PC에서 쓰는 중')
     await expect(page.getByText(`${title} (다른 PC에서 고친 내용`).first()).toBeVisible()
