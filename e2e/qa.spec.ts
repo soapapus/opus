@@ -132,3 +132,54 @@ test.describe('설정', () => {
     assertNoErrors(errors)
   })
 })
+
+// 집·회사 PC가 Google Drive 폴더를 같이 쓸 때 (화면에서는 가짜 데이터의 __otherPcEdit 로 다른 PC를 흉내 낸다)
+test.describe('두 PC 동기화', () => {
+  const otherPc = (page: import('@playwright/test').Page, title: string, body: string) =>
+    page.evaluate(([t, b]) => (window as unknown as { __otherPcEdit: (x: string, y: string) => void }).__otherPcEdit(t, b), [title, body])
+
+  test('다른 PC에서 고친 메모를 저장 안 한 글이 없으면 바로 다시 불러온다', async ({ page }) => {
+    const errors = await openApp(page)
+    await goMemo(page)
+    await page.locator('.arow-b').first().click()
+    const title = await page.locator('.agenda-open .ed-title').inputValue()
+    await otherPc(page, title, '회사 PC에서 적은 내용')
+    await expect(page.locator('.agenda-open .tiptap')).toContainText('회사 PC에서 적은 내용')
+    await expect(page.getByText('다른 PC에서 고친 내용을 불러왔어요')).toBeVisible()
+    assertNoErrors(errors)
+  })
+
+  test('같은 메모를 양쪽에서 고치면 내 글은 그대로 저장되고, 다른 PC 내용은 사본으로 남는다', async ({ page }) => {
+    const errors = await openApp(page)
+    await goMemo(page)
+    await page.locator('.arow-b').first().click()
+    const title = await page.locator('.agenda-open .ed-title').inputValue()
+    await page.locator('.agenda-open .tiptap').click()
+    await page.keyboard.press('Control+End')
+    await page.keyboard.type('집 PC에서 쓰는 중')
+    await otherPc(page, title, '회사 PC에서 먼저 저장한 내용')
+    // 쓰는 중인 글은 덮어쓰지 않는다
+    await expect(page.locator('.agenda-open .tiptap')).toContainText('집 PC에서 쓰는 중')
+    await expect(page.getByText(/다른 PC에서 고친 내용은 '.*' 메모로 남겼어요/)).toBeVisible()
+    await expect(page.locator('.agenda-open .tiptap')).toContainText('집 PC에서 쓰는 중')
+    await expect(page.getByText(`${title} (다른 PC에서 고친 내용`).first()).toBeVisible()
+    assertNoErrors(errors)
+  })
+
+  test('설정에 두 PC 같이 쓰는 방법 안내가 있고, 1024px에서도 넘치지 않는다', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 720 })
+    const errors = await openApp(page)
+    await page.locator('.rail-btn[aria-label="설정"]').click()
+    const guide = page.locator('.sync-guide')
+    await guide.scrollIntoViewIfNeeded()
+    await expect(guide).toContainText('Google Drive 데스크톱')
+    await expect(guide.locator('.sync-state')).toHaveText('이 PC 안 폴더')
+    const over = await page.evaluate(() => {
+      const g = document.querySelector('.sync-guide') as HTMLElement
+      const card = g.closest('.srow') as HTMLElement
+      return g.getBoundingClientRect().right - card.getBoundingClientRect().right
+    })
+    expect(over, '안내가 카드 밖으로 넘침').toBeLessThanOrEqual(0)
+    assertNoErrors(errors)
+  })
+})

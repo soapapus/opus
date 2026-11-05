@@ -4,7 +4,7 @@ import StarterKit from '@tiptap/starter-kit'
 import { TaskList } from '@tiptap/extension-task-list'
 import { TaskItem } from '@tiptap/extension-task-item'
 import { Markdown } from '@tiptap/markdown'
-import type { Note, NoteKind, NoteSummary, Provider } from '../../../shared/types'
+import type { Note, NoteKind, NoteSummary, Provider, SavedNote } from '../../../shared/types'
 import { formatDateLabel, todayStr } from '../../../shared/calendar'
 import { hasLimeDrag, readDrag, type DragPayload } from '../dnd'
 import { timeOf } from '../../../shared/text'
@@ -25,7 +25,7 @@ interface Props {
   autoFocusTitle: boolean
   /** 이 기록과 명시적으로 연결된 다른 기록 */
   linked: NoteSummary[]
-  onSaved: (note: Note) => void
+  onSaved: (note: SavedNote) => void
   onDelete: () => void
   onOpenLinked: (id: string) => void
   onUnlink: (id: string) => void
@@ -77,6 +77,8 @@ export function MemoEditor({
   // 저장 시점에 항상 최신 값을 쓰기 위해 ref에도 둔다
   const latest = useRef({ title: note.title, tags: note.tags, body: note.body, time: note.time })
   const dirty = useRef(false)
+  // 다른 PC에서 같은 메모를 고쳤는지 알아보려고, 마지막으로 읽거나 저장한 updated 값을 기억한다
+  const base = useRef(note.updated)
   const timer = useRef<number | null>(null)
   const inflight = useRef<Promise<void>>(Promise.resolve())
   const onSavedRef = useRef(onSaved)
@@ -93,7 +95,8 @@ export function MemoEditor({
     const snapshot = note.kind === 'event' ? { ...rest, time: t } : rest
     const run = inflight.current.then(async () => {
       try {
-        const saved = await window.api.saveNote({ id: note.id, ...snapshot })
+        const saved = await window.api.saveNote({ id: note.id, ...snapshot, baseUpdated: base.current })
+        base.current = saved.updated
         onSavedRef.current(saved)
         if (!dirty.current) setStatus({ kind: 'saved', text: `저장됨 ${hhmm()}` })
       } catch {
@@ -160,7 +163,9 @@ export function MemoEditor({
             ]
           })
           .run()
-      }
+      },
+      isDirty: () => dirty.current || timer.current !== null,
+      baseUpdated: () => base.current
     }
     editorHandle.current = handle
     return () => {

@@ -1705,3 +1705,36 @@ span.sig {
     display: none;
   }
 }
+
+/* 설정 > 집·회사 PC 같이 쓰기 안내 */
+.sync-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.sync-guide ol {
+  margin: 0;
+  padding-left: 18px;
+  line-height: 1.6;
+}
+.sync-guide small {
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+.sync-state {
+  align-self: flex-start;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--hair2);
+  color: var(--text-2);
+}
+.sync-state[data-synced='yes'] {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--accent-ink);
+}

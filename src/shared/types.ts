@@ -82,7 +82,15 @@ export interface SaveNoteInput {
   title: string
   body: string
   tags: string[]
+  /**
+   * 편집기가 이 메모를 읽었을 때의 updated 값. 저장하려는 사이에 다른 PC(Google Drive 동기화)에서
+   * 파일이 바뀌었으면 덮어쓰기 전에 그 내용을 사본으로 남긴다.
+   */
+  baseUpdated?: string
 }
+
+/** 저장 결과. 다른 PC에서 바뀐 내용을 사본으로 남겼으면 conflictCopy에 그 사본이 온다 */
+export type SavedNote = Note & { conflictCopy?: NoteSummary }
 
 export type WindowAction = 'minimize' | 'maximize' | 'close'
 
@@ -107,7 +115,7 @@ export interface Api {
   documents(tag?: string): Promise<NoteSummary[]>
   getNote(id: string): Promise<Note | null>
   createNote(input: CreateNoteInput): Promise<Note>
-  saveNote(input: SaveNoteInput): Promise<Note>
+  saveNote(input: SaveNoteInput): Promise<SavedNote>
   deleteNote(id: string): Promise<void>
   discardIfEmpty(id: string): Promise<boolean>
   search(query: string): Promise<NoteSummary[]>
@@ -143,6 +151,8 @@ export interface Api {
   onFlushRequest(handler: () => Promise<void> | void): () => void
   /** 백업 등으로 정보가 바뀌었을 때 */
   onInfoChanged(handler: () => void): () => void
+  /** 다른 PC(동기화 폴더)에서 메모 파일이 바뀐 것을 찾았을 때 */
+  onFilesChanged(handler: () => void): () => void
 }
 
 export type Provider = 'google' | 'naver'

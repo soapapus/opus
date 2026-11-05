@@ -59,6 +59,11 @@ const api: Api = {
     ipcRenderer.on('app:flush', listener)
     return () => ipcRenderer.removeListener('app:flush', listener)
   },
+  onFilesChanged(handler) {
+    const listener = (): void => handler()
+    ipcRenderer.on('app:files-changed', listener)
+    return () => ipcRenderer.removeListener('app:files-changed', listener)
+  },
   onInfoChanged(handler) {
     const listener = (): void => handler()
     ipcRenderer.on('app:info-changed', listener)

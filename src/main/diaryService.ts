@@ -1,10 +1,11 @@
 // 파일 저장(NoteStore)과 색인(NoteIndex)을 묶어서 화면이 쓰는 기능으로 내놓는다.
 
-import { mkdirSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, mkdirSync, statSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { isDateStr, todayStr } from '../shared/calendar'
 import { deriveTitle, makePreview, normalizeTags, toLocalIso } from '../shared/text'
-import type { CreateNoteInput, Note, NoteKind, NoteSummary, SaveNoteInput, TagCount } from '../shared/types'
+import { changedSince, conflictTitle } from '../shared/sync'
+import type { CreateNoteInput, Note, NoteKind, NoteSummary, SavedNote, SaveNoteInput, TagCount } from '../shared/types'
 import { NoteIndex } from './index/noteIndex'
 import { NoteStore } from './storage/noteStore'
 
@@ -16,12 +17,15 @@ export class DiaryService {
 
   constructor(
     readonly root: string,
-    workspace = 'personal'
+    workspace = 'personal',
+    /** 검색 색인 파일. 동기화 폴더(Google Drive)에 두면 두 PC가 서로 덮어쓰므로 PC 안에 둔다 */
+    indexFile = join(root, 'index.sqlite')
   ) {
     mkdirSync(root, { recursive: true })
     this.store = new NoteStore(root, workspace)
     this.store.ensureDirs()
-    this.index = new NoteIndex(join(root, 'index.sqlite'), workspace)
+    mkdirSync(dirname(indexFile), { recursive: true })
+    this.index = new NoteIndex(indexFile, workspace)
     this.refreshIndex()
   }
 
@@ -48,10 +52,28 @@ export class DiaryService {
     return note
   }
 
-  save(input: SaveNoteInput, now: Date = new Date()): Note {
-    const path = this.index.pathOf(input.id)
+  /** 색인에 적힌 파일 위치. 다른 PC에서 옮겨졌으면 색인을 맞추고 다시 찾는다 */
+  private locate(id: string): string | null {
+    const path = this.index.pathOf(id)
+    if (path && existsSync(path)) return path
+    this.refreshIndex()
+    return this.index.pathOf(id)
+  }
+
+  save(input: SaveNoteInput, now: Date = new Date()): SavedNote {
+    const path = this.locate(input.id)
     if (!path) throw new Error(`메모를 찾을 수 없습니다: ${input.id}`)
     const current = this.store.read(path)
+    // 편집기가 읽은 뒤 다른 PC에서 파일이 바뀌었으면, 그 내용을 사본으로 남기고 나서 덮어쓴다
+    let conflictCopy: NoteSummary | undefined
+    if (changedSince(input.baseUpdated, current.updated)) {
+      const copy = this.create(
+        { kind: current.kind, date: current.date, time: current.time, title: conflictTitle(current.title, now), body: current.body, tags: current.tags, links: current.links },
+        now
+      )
+      const { body: _b, source: _s, ...summary } = copy
+      conflictCopy = summary
+    }
     const body = input.body
     const title = input.title.trim() || deriveTitle(body)
     let time = current.time
@@ -70,7 +92,7 @@ export class DiaryService {
     const newPath = this.store.write(next)
     if (newPath !== path) this.store.removeFile(path)
     this.index.upsert(next, newPath, statSync(newPath).mtimeMs)
-    return next
+    return conflictCopy ? { ...next, conflictCopy } : next
   }
 
   get(id: string): Note | null {

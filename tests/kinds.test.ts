@@ -1,9 +1,9 @@
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { AppState } from '../src/main/app'
+import { AppState, localDirFor } from '../src/main/app'
 import { DiaryService } from '../src/main/diaryService'
 
 let root: string
@@ -191,8 +191,10 @@ describe('마이그레이션: 옛 색인 구조(v1)로 열어도 기록이 사�
         `---\nid: ${id}\ntitle: ${JSON.stringify(title)}\ndate: 2026-10-20\ntags: []\nsource: local\ncreated: 2026-10-20T09:00:00+09:00\nupdated: 2026-10-20T09:00:00+09:00\n---\n본문 ${id}\n`
       )
     }
-    rmSync(join(root, 'index.sqlite'), { force: true })
-    const old = new DatabaseSync(join(root, 'index.sqlite'))
+    // 색인은 이 PC 안(설정 폴더 아래)에 둔다 — 그 자리에 옛 구조의 색인이 있는 경우
+    const indexFile = join(localDirFor(join(root, 'settings.json'), root), 'index.sqlite')
+    mkdirSync(dirname(indexFile), { recursive: true })
+    const old = new DatabaseSync(indexFile)
     old.exec(`CREATE TABLE notes (id TEXT PRIMARY KEY, workspace TEXT NOT NULL, title TEXT NOT NULL, date TEXT NOT NULL,
       source TEXT NOT NULL, path TEXT NOT NULL, created TEXT NOT NULL, updated TEXT NOT NULL, mtime REAL NOT NULL, preview TEXT NOT NULL DEFAULT '');
       INSERT INTO notes VALUES ('a1','personal','첫 기록','2026-10-20','local','x','','',0,'');`)
@@ -207,7 +209,7 @@ describe('마이그레이션: 옛 색인 구조(v1)로 열어도 기록이 사�
     // 1) 옛 색인은 다시 만들었고 2) 백업이 만들어졌고 3) 모든 기록이 남아 있다
     expect(state.service.byDate('2026-10-20').map((n) => n.id).sort()).toEqual(['a1', 'a2'])
     expect(state.service.search('본문 a2')).toHaveLength(1)
-    expect(existsSync(join(root, 'index.sqlite.before-migration.bak'))).toBe(true)
+    expect(existsSync(`${indexFile}.before-migration.bak`)).toBe(true)
     const backups = readdirSync(join(root, '..', 'LimeDiary-backups')).filter((f) => f.endsWith('.zip'))
     expect(backups.length).toBeGreaterThanOrEqual(1)
     expect(readFileSync(join(folder, 'a1.md'), 'utf8')).toContain('본문 a1') // 원본 파일 그대로

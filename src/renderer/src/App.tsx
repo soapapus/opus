@@ -52,6 +52,8 @@ export function App() {
   const [conn, setConn] = useState<ConnectionsState | null>(null)
 
   const [note, setNote] = useState<Note | null>(null)
+  // 다른 PC에서 바뀐 내용을 편집기에 다시 불러올 때 올린다 (편집기를 새로 그림)
+  const [editorRev, setEditorRev] = useState(0)
   const [linked, setLinked] = useState<NoteSummary[]>([])
   const [linkTick, setLinkTick] = useState(0)
   const [focusId, setFocusId] = useState<string | null>(null)
@@ -352,6 +354,23 @@ export function App() {
   }, [])
   useEffect(() => window.api.onFlushRequest(async () => leave()), [leave])
   useEffect(() => window.api.onInfoChanged(() => void refresh()), [refresh])
+  // 다른 PC(Google Drive 동기화)에서 메모가 바뀌면 목록을 다시 읽고, 열린 메모도 저장 안 한 글이 없으면 새로 불러온다
+  useEffect(
+    () =>
+      window.api.onFilesChanged(async () => {
+        void refresh()
+        const cur = live.current.note
+        const handle = editorHandle.current
+        if (!cur || !handle || handle.isDirty()) return
+        const fresh = await window.api.getNote(cur.id)
+        if (!fresh || fresh.updated === handle.baseUpdated() || handle.isDirty()) return
+        if (live.current.note?.id !== cur.id) return
+        setNote(fresh)
+        setEditorRev((n) => n + 1)
+        say('다른 PC에서 고친 내용을 불러왔어요')
+      }),
+    [refresh, say]
+  )
 
   const toggleRef = useRef<(w: 'ws' | 'day') => void>(() => undefined)
   toggleRef.current = (w) => (w === 'ws' ? setPrefs({ wsOpen: !prefs.wsOpen }) : setPrefs({ dayOpen: !prefs.dayOpen }))
@@ -445,11 +464,14 @@ export function App() {
     if (!note || (note.kind === 'document') !== wantDoc) return null
     return (
       <MemoEditor
-        key={note.id}
+        key={`${note.id}:${editorRev}`}
         note={note}
         autoFocusTitle={focusId === note.id}
         linked={linked}
-        onSaved={() => void refresh()}
+        onSaved={(saved) => {
+          if (saved.conflictCopy) say(`다른 PC에서 고친 내용은 '${saved.conflictCopy.title}' 메모로 남겼어요`)
+          void refresh()
+        }}
         onDelete={() => setConfirmDelete(true)}
         onOpenLinked={(id) => {
           const l = linked.find((x) => x.id === id)
