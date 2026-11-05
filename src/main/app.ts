@@ -1,6 +1,6 @@
 // 앱 전체 상태: 데이터 폴더, 메모 서비스, 백업을 한곳에서 관리한다.
-import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync } from 'node:fs'
-import { randomUUID } from 'node:crypto'
+import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
+import { createHash, randomUUID } from 'node:crypto'
 import { homedir } from 'node:os'
 import { dirname, join, resolve, sep } from 'node:path'
 import { DiaryService } from './diaryService'
@@ -15,6 +15,12 @@ export interface AppPaths {
   portableDir?: string
   envDataDir?: string
   version: string
+}
+
+/** 데이터 폴더마다 이 PC에만 두는 파일의 폴더 (설정 파일 옆 local/<폴더 경로 해시>) */
+export function localDirFor(settingsFile: string, dataDir: string): string {
+  const key = createHash('sha1').update(resolve(dataDir).toLowerCase()).digest('hex').slice(0, 12)
+  return join(dirname(settingsFile), 'local', key)
 }
 
 export class AppState {
@@ -50,6 +56,27 @@ export class AppState {
 
   get backupDir(): string { return this.workspace.backupDir }
 
+  /**
+   * 이 PC에만 두는 파일(검색 색인, Google 일정 임시 파일)의 폴더.
+   * 데이터 폴더를 Google Drive에 두고 집·회사 PC가 같이 쓰면, 색인 같은 파일이 서로 덮어써지고
+   * 회사 일정이 개인 드라이브로 올라가므로 데이터 폴더 밖(설정 폴더 아래)에 둔다.
+   */
+  localDirFor(dataDir: string): string {
+    return localDirFor(this.paths.settingsFile, dataDir)
+  }
+
+  get localDir(): string { return this.localDirFor(this.dataDir) }
+
+  private indexFileFor(dataDir: string): string {
+    return join(this.localDirFor(dataDir), 'index.sqlite')
+  }
+
+  private openService(dir: string): DiaryService {
+    // 예전 버전이 데이터 폴더 안에 둔 Google 일정 임시 파일은 지운다 (다시 받을 수 있고, 회사 일정이 동기화되면 안 됨)
+    for (const name of ['cache.json', 'cache.json.tmp']) rmSync(join(dir, 'personal', 'external', name), { force: true })
+    return new DiaryService(dir, 'personal', this.indexFileFor(dir))
+  }
+
   private updateWorkspace(patch: Partial<WorkspaceInfo>): void {
     const id = this.workspace.id
     this.settings.update({ workspaces: this.settings.get().workspaces!.map(w => w.id === id ? { ...w, ...patch } : w) })
@@ -72,7 +99,7 @@ export class AppState {
     if (!next) throw new Error('워크스페이스를 찾을 수 없어요')
     if (next.id === this.workspace.id) return this.info()
     this.backupBeforeMigration(next.dataDir)
-    const service = new DiaryService(next.dataDir)
+    const service = this.openService(next.dataDir)
     try { this.settings.update({ workspaceId: id }) } catch (e) { service.close(); throw e }
     this.service.close()
     this.service = service
@@ -82,10 +109,10 @@ export class AppState {
 
   /** 검색 색인 구조가 바뀌어 다시 만들어야 하면, 만들기 전에 백업부터 한다 */
   private backupBeforeMigration(dir: string): void {
-    const indexFile = join(dir, 'index.sqlite')
+    const indexFile = this.indexFileFor(dir)
     if (!NoteIndex.needsMigration(indexFile)) return
     try {
-      copyFileSync(indexFile, join(dir, 'index.sqlite.before-migration.bak'))
+      copyFileSync(indexFile, `${indexFile}.before-migration.bak`)
     } catch {
       /* 색인은 다시 만들 수 있으므로 복사 실패는 넘어간다 */
     }
@@ -98,7 +125,7 @@ export class AppState {
     this.service?.close()
     this.backupBeforeMigration(dir)
     this.dataDir = dir
-    this.service = new DiaryService(dir)
+    this.service = this.openService(dir)
   }
 
   info(): AppInfo {

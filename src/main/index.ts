@@ -53,13 +53,16 @@ const vault: Vault = {
   decrypt: (b) => safeStorage.decryptString(b)
 }
 
-/** 외부 캘린더 서비스. 가져온 일정 캐시는 데이터 폴더 안에 두어 함께 옮겨지고 백업된다. */
+/**
+ * 외부 캘린더 서비스. 가져온 일정 임시 파일은 데이터 폴더 밖, 이 PC 안에만 둔다.
+ * (회사 일정은 Opus에 보관·백업하지 않고, Google Drive로 동기화되지도 않게 — AGENTS.md 6장)
+ */
 function external(): ExternalService {
   if (!ext || extDir !== state.dataDir) {
     extDir = state.dataDir
     ext = new ExternalService({
       secureFile: state.workspace.id === 'personal' ? join(app.getPath('userData'), 'secure.bin') : join(app.getPath('userData'), 'workspaces', state.workspace.id, 'secure.bin'),
-      cacheFile: join(state.dataDir, 'personal', 'external', 'cache.json'),
+      cacheFile: join(state.localDir, 'external-cache.json'),
       vault,
       openUrl: (u) => shell.openExternal(u)
     })
@@ -338,6 +341,17 @@ function setupCloseFlush(w: BrowserWindow): void {
   })
 }
 
+/** 다른 PC(동기화 폴더)에서 메모 파일이 바뀌었는지 보고, 바뀌었으면 화면에 알린다 */
+function checkFilesChanged(): void {
+  if (!state || !win || win.isDestroyed()) return
+  try {
+    const r = state.service.refreshIndex()
+    if (r.added || r.updated || r.removed) win.webContents.send('app:files-changed')
+  } catch (err) {
+    bootLog(`파일 다시 읽기 실패: ${String(err)}`)
+  }
+}
+
 function createWindow(): void {
   win = new BrowserWindow({
     width: 1360,
@@ -376,6 +390,12 @@ function createWindow(): void {
     }
   })
   setupCloseFlush(win)
+  // 집·회사 PC가 Google Drive 폴더를 같이 쓰면, 창으로 돌아올 때(그리고 1분마다) 바뀐 메모 파일을 다시 읽는다
+  win.on('focus', checkFilesChanged)
+  const syncTimer = setInterval(() => {
+    if (win?.isFocused()) checkFilesChanged()
+  }, 60_000)
+  win.on('closed', () => clearInterval(syncTimer))
 
   loadRenderer(win)
 

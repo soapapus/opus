@@ -1,5 +1,6 @@
 // 브라우저에서 화면만 미리 볼 때 쓰는 가짜 api (Electron 안에서는 쓰지 않는다).
 import { builtinHolidays } from '../../shared/holidays'
+import { changedSince, conflictTitle } from '../../shared/sync'
 import type { Api, ConnectionsState, ExternalEvent, Note, NoteSummary } from '../../shared/types'
 
 export function installMockApi(): void {
@@ -61,6 +62,7 @@ export function installMockApi(): void {
     naver: { provider: 'naver', configured: false, connected: false, capabilities: [] }
   }
   let prefs: Record<string, unknown> = { pinned: pinnedPref }
+  const filesChanged = new Set<() => void>()
   const sum = (n: Note): NoteSummary => {
     const { body: _b, source: _s, ...rest } = n
     return rest
@@ -132,9 +134,14 @@ export function installMockApi(): void {
     },
     saveNote: async (input) => {
       const n = notes.get(input.id)!
+      let conflictCopy: NoteSummary | undefined
+      if (changedSince(input.baseUpdated, n.updated)) {
+        const id = mk({ ...n, id: undefined, title: conflictTitle(n.title, new Date()), created: new Date().toISOString(), updated: n.updated })
+        conflictCopy = sum(notes.get(id)!)
+      }
       Object.assign(n, { title: input.title, body: input.body, tags: input.tags, updated: new Date().toISOString() })
       if (input.time !== undefined) n.time = input.time
-      return n
+      return { ...n, conflictCopy }
     },
     deleteNote: async (id) => void notes.delete(id),
     discardIfEmpty: async (id) => {
@@ -179,7 +186,18 @@ export function installMockApi(): void {
     openDataDir: async () => undefined,
     windowControl: async () => undefined,
     onFlushRequest: () => () => undefined,
-    onInfoChanged: () => () => undefined
+    onInfoChanged: () => () => undefined,
+    onFilesChanged: (handler) => {
+      filesChanged.add(handler)
+      return () => filesChanged.delete(handler)
+    }
   }
   ;(window as unknown as { api: Api }).api = api
+  // 화면 테스트용: 다른 PC가 동기화 폴더에서 메모를 고친 것처럼 만든다
+  ;(window as unknown as { __otherPcEdit: (idOrTitle: string, body: string) => void }).__otherPcEdit = (idOrTitle, body) => {
+    const n = notes.get(idOrTitle) ?? all().find((x) => x.title === idOrTitle)
+    if (!n) return
+    Object.assign(n, { body, preview: body.slice(0, 80), updated: new Date(Date.now() + 1000).toISOString() })
+    filesChanged.forEach((h) => h())
+  }
 }

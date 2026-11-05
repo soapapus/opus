@@ -3,6 +3,7 @@ import type { AppInfo, HolidayStatus } from '../../../shared/types'
 import { ACCENTS, DEFAULT_PREFS, MENU_DEFAULT, inkOn, isHex, type CalView, type MenuKey, type Prefs } from '../prefs'
 import { CalendarConnections } from './CalendarConnections'
 import { SETTING_SECTIONS } from './Shell'
+import { isCloudSyncedPath } from '../../../shared/sync'
 
 function fmt(iso: string | null): string {
   if (!iso) return '아직 없음'
@@ -349,6 +350,19 @@ export function SettingsView({
               <button className="btn" onClick={onOpenData}>
                 폴더 열기
               </button>
+            </Row>
+            <Row label="집·회사 PC 같이 쓰기" hint="Google Drive 데스크톱으로 맞춰요">
+              <div className="sync-guide">
+                <span className="sync-state" data-synced={isCloudSyncedPath(info.dataDir) ? 'yes' : 'no'}>
+                  {isCloudSyncedPath(info.dataDir) ? '드라이브 폴더 사용 중' : '이 PC 안 폴더'}
+                </span>
+                <ol>
+                  <li>두 PC에 Google Drive 데스크톱을 깔고 같은 계정으로 로그인해요.</li>
+                  <li>두 PC 모두 위 '폴더 바꾸기'로 드라이브 안 같은 폴더(예: G:\내 드라이브\Opus)를 골라요.</li>
+                  <li>창으로 돌아오면 다른 PC에서 고친 메모를 다시 읽어요. 같은 메모를 양쪽에서 고치면 덮어쓰지 않고 사본을 남겨요.</li>
+                </ol>
+                <small>검색 목록과 회사 Google 일정은 드라이브에 올리지 않고 이 PC에만 둬요.</small>
+              </div>
             </Row>
             <Row label="백업 폴더" hint={info.backupDir}>
               <button className="btn" disabled={busy} onClick={onChooseBackup}>
