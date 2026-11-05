@@ -122,3 +122,13 @@ test.describe('화면 규칙', () => {
     })
   }
 })
+
+test.describe('설정', () => {
+  test('백업 안내가 "지우지 않고 모두 보관"이고 30개 제한 문구가 없다', async ({ page }) => {
+    const errors = await openApp(page)
+    await page.locator('.rail-btn[aria-label="설정"]').click()
+    await expect(page.getByText('지우지 않고 모두 보관').first()).toBeVisible()
+    await expect(page.getByText('최근 30개')).toHaveCount(0)
+    assertNoErrors(errors)
+  })
+})

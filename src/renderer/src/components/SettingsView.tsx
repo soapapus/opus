@@ -355,7 +355,7 @@ export function SettingsView({
                 폴더 바꾸기
               </button>
             </Row>
-            <Row label="백업" hint={`하루 한 번 자동, 최근 30개 보관 · 마지막 ${fmt(info.lastBackup)}`}>
+            <Row label="백업" hint={`하루 한 번 자동, 지우지 않고 모두 보관 · 마지막 ${fmt(info.lastBackup)}`}>
               <button className="btn-accent" disabled={busy} onClick={onBackup}>
                 지금 백업
               </button>

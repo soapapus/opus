@@ -6,7 +6,7 @@ import { dirname, join, resolve, sep } from 'node:path'
 import { DiaryService } from './diaryService'
 import { NoteIndex } from './index/noteIndex'
 import { SettingsStore } from './settings'
-import { createBackup, lastBackupIso, lastBackupTime, pruneBackups, shouldBackup } from './backup/backup'
+import { createBackup, lastBackupIso, lastBackupTime, shouldBackup } from './backup/backup'
 import type { AppInfo, WorkspaceInfo } from '../shared/types'
 
 export interface AppPaths {
@@ -150,9 +150,8 @@ export class AppState {
   }
 
   backupNow(now: Date = new Date()): string | null {
-    const zip = createBackup(this.dataDir, this.backupDir, now)
-    if (zip) pruneBackups(this.backupDir, 30)
-    return zip
+    // 백업은 지우지 않고 계속 쌓는다 (예전에는 최근 30개만 남겼음)
+    return createBackup(this.dataDir, this.backupDir, now)
   }
 
   /** 마지막 백업이 24시간 넘었으면 자동으로 백업한다. */

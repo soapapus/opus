@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { unzipSync } from 'fflate'
@@ -8,10 +8,10 @@ import {
   createBackup,
   lastBackupTime,
   listBackups,
-  pruneBackups,
   restoreBackup,
   shouldBackup
 } from '../src/main/backup/backup'
+import { AppState } from '../src/main/app'
 import { DiaryService } from '../src/main/diaryService'
 
 let root: string
@@ -33,7 +33,7 @@ function makeData(dir: string) {
 
 describe('백업 파일 이름·주기', () => {
   it('이름에 현지 날짜와 시각이 들어간다', () => {
-    expect(backupFileName(new Date(2026, 10, 5, 17, 40, 9))).toBe('LimeDiary-backup-20261105-174009.zip')
+    expect(backupFileName(new Date(2026, 10, 5, 17, 40, 9))).toBe('Opus-backup-20261105-174009.zip')
   })
 
   it('24시간이 지났거나 백업이 없을 때만 새로 한다', () => {
@@ -50,7 +50,7 @@ describe('백업 만들기', () => {
     makeData(data)
     const backupDir = join(root, 'backups')
     const zip = createBackup(data, backupDir, new Date(2026, 10, 5, 17, 40, 0))!
-    expect(zip).toBe(join(backupDir, 'LimeDiary-backup-20261105-174000.zip'))
+    expect(zip).toBe(join(backupDir, 'Opus-backup-20261105-174000.zip'))
     const names = Object.keys(unzipSync(new Uint8Array(readFileSync(zip)))).sort()
     expect(names).toHaveLength(2)
     expect(names.every((n) => n.startsWith('personal/notes/2026/11/') && n.endsWith('.md'))).toBe(true)
@@ -76,16 +76,39 @@ describe('백업 만들기', () => {
 })
 
 describe('정리와 복원', () => {
-  it('최근 N개만 남기고 마지막 백업 시각을 알려 준다', () => {
+  it('백업은 지우지 않고 계속 쌓인다 (예전 30개 제한 없음)', () => {
     const data = join(root, 'data')
     makeData(data)
     const backupDir = join(root, 'backups')
-    for (let day = 1; day <= 5; day++) createBackup(data, backupDir, new Date(2026, 10, day, 12, 0, 0))
-    expect(listBackups(backupDir)).toHaveLength(5)
-    expect(pruneBackups(backupDir, 3)).toBe(2)
-    expect(listBackups(backupDir).map((b) => b.time.getDate())).toEqual([5, 4, 3])
-    expect(lastBackupTime(backupDir)?.getDate()).toBe(5)
+    const state = new AppState({ settingsFile: join(root, 'settings.json'), documents: root, envDataDir: data, version: 'test' })
+    state.setBackupDir(backupDir)
+    for (let i = 0; i < 35; i++) state.backupNow(new Date(2026, 9, 1 + i, 12, 0, 0))
+    state.close()
+    expect(listBackups(backupDir)).toHaveLength(35)
+    expect(lastBackupTime(backupDir)?.getDate()).toBe(4) // 10월 1일 + 34일 = 11월 4일
     expect(lastBackupTime(join(root, '없는폴더'))).toBeNull()
+  })
+
+  it('예전 이름(LimeDiary-backup-) 백업도 목록에 나오고 복원된다', () => {
+    const data = join(root, 'data')
+    makeData(data)
+    const backupDir = join(root, 'backups')
+    const zip = createBackup(data, backupDir, new Date(2026, 10, 5, 9, 0, 0))!
+    const old = join(backupDir, 'LimeDiary-backup-20261101-090000.zip')
+    copyFileSync(zip, old)
+    expect(listBackups(backupDir).map((b) => b.file)).toEqual(['Opus-backup-20261105-090000.zip', 'LimeDiary-backup-20261101-090000.zip'])
+    expect(restoreBackup(old, join(root, 'restored'))).toBe(2)
+  })
+
+  it('Google에서 읽어 온 일정 임시 파일은 백업에 담지 않는다', () => {
+    const data = join(root, 'data')
+    makeData(data)
+    mkdirSync(join(data, 'personal', 'external'), { recursive: true })
+    writeFileSync(join(data, 'personal', 'external', 'cache.json'), '{"google":{"events":[{"title":"회사 일정"}]}}')
+    const zip = createBackup(data, join(root, 'backups'))!
+    const names = Object.keys(unzipSync(new Uint8Array(readFileSync(zip))))
+    expect(names.some((n) => n.includes('external'))).toBe(false)
+    expect(names.filter((n) => n.endsWith('.md'))).toHaveLength(2)
   })
 
   it('새 폴더에 복원하면 메모가 그대로 열린다', () => {
