@@ -98,7 +98,7 @@ export function SettingsDialog({
         <div className="set-row">
           <div className="lab">백업</div>
           <div className="val">
-            하루에 한 번 자동으로 백업하고 최근 30개를 보관해요. 마지막 백업: {fmt(info.lastBackup)}
+            하루에 한 번 자동으로 백업하고 지우지 않고 모두 보관해요. 마지막 백업: {fmt(info.lastBackup)}
           </div>
           <div className="btns">
             <button className="btn primary" disabled={busy} onClick={onBackup}>

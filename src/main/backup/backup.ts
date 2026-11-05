@@ -1,13 +1,20 @@
-// 백업: 데이터 폴더를 zip 하나로 묶어 둔다. 색인(index.sqlite)은 다시 만들 수 있어서 뺀다.
+// 백업: 데이터 폴더를 zip 하나로 묶어 둔다.
+// - 색인(index.sqlite)은 다시 만들 수 있어서 뺀다.
+// - Google 캘린더에서 읽어 온 일정 임시 파일(personal/external/)은 회사 일정이 섞여 있어 담지 않는다 (AGENTS.md 6장).
+// - 백업은 영원히 쌓인다. 오래된 백업을 지우는 기능은 두지 않는다 (주인 결정 2026-11-05).
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { unzipSync, zipSync } from 'fflate'
 import { pad2 } from '../../shared/calendar'
 import { toLocalIso } from '../../shared/text'
 
-const PREFIX = 'LimeDiary-backup-'
-const NAME_PATTERN = /^LimeDiary-backup-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})\.zip$/
+const PREFIX = 'Opus-backup-'
+/** 새 이름(Opus-backup-)과 0.3.2까지의 옛 이름(LimeDiary-backup-) 백업을 모두 읽는다 */
+const NAME_PATTERN = /^(?:Opus|LimeDiary)-backup-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})\.zip$/
+
+/** 백업에 담지 않는 폴더 (데이터 폴더 기준 상대 경로) */
+const SKIP_DIRS = ['personal/external']
 
 export interface BackupEntry {
   file: string
@@ -30,6 +37,7 @@ function collectFiles(dataDir: string, backupDir: string): Record<string, Uint8A
       const full = join(dir, entry.name)
       if (entry.isDirectory()) {
         if (resolve(full) === skipDir) continue // 백업 폴더가 데이터 폴더 안에 있어도 자기 자신은 담지 않는다
+        if (SKIP_DIRS.includes(relative(dataDir, full).split(sep).join('/'))) continue
         walk(full)
       } else if (entry.isFile()) {
         const name = entry.name
@@ -66,13 +74,6 @@ export function listBackups(backupDir: string): BackupEntry[] {
     entries.push({ file, path: join(backupDir, file), time: new Date(y, mo - 1, d, h, mi, s) })
   }
   return entries.sort((a, b) => b.time.getTime() - a.time.getTime())
-}
-
-/** 오래된 백업을 지우고 최근 keep개만 남긴다. 지운 개수를 돌려준다. */
-export function pruneBackups(backupDir: string, keep = 30): number {
-  const old = listBackups(backupDir).slice(keep)
-  for (const entry of old) unlinkSync(entry.path)
-  return old.length
 }
 
 export function lastBackupTime(backupDir: string): Date | null {
