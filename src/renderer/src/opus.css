@@ -2121,3 +2121,29 @@ span.sig {
   padding: 0 14px;
   font-size: 12.5px;
 }
+/* Google 통합 설정 · 자료실 · AI */
+.cloud-settings { min-width: 0; }
+.cloud-settings h3 { margin: 22px 0 10px; font-size: 16px; }
+.cloud-settings .keyform { margin: 14px 0; }
+.cloud-settings .keyform input { width: 100%; min-width: 0; }
+.cloud-settings .btns { flex-wrap: wrap; align-items: center; }
+.cloud-settings select { max-width: 100%; min-width: 0; padding: 6px; background: var(--paper); color: inherit; border: 1px solid var(--hair2); border-radius: 6px; }
+.cloud-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--hair2); }
+.cloud-row small { display: block; font-size: 12px; opacity: .7; }
+.cloud-status, .cloud-settings .conn-msg { overflow-wrap: anywhere; font-size: 12px; }
+.cloud-view { height: 100%; display: flex; flex-direction: column; min-width: 0; }
+.cloud-view h1 { font-size: 20px; margin: 0; }
+.cloud-view .cardp-h { display: flex; justify-content: space-between; gap: 12px; flex-shrink: 0; }
+.cloud-scroll { overflow-y: auto; padding: 18px; min-height: 0; overflow-wrap: anywhere; }
+.cloud-search { display: grid; gap: 6px; margin: 16px 0; font-size: 12px; }
+.cloud-search input, .ai-compose textarea { box-sizing: border-box; width: 100%; min-width: 0; border: 1px solid var(--hair2); border-radius: 8px; padding: 8px; background: var(--paper); color: inherit; font: inherit; }
+.cloud-files { padding: 0; list-style: none; }
+.cloud-files li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--hair2); }
+.cloud-files li > span { flex: 1 1 180px; min-width: 0; }
+.cloud-files small { display: block; opacity: .7; margin-top: 4px; }
+.ai-message { margin: 12px 0; padding: 12px; background: var(--canvas); border: 1px solid var(--hair2); border-radius: 10px; }
+.ai-message div { white-space: pre-wrap; margin-top: 8px; }
+.ai-message.user { border-left: 3px solid var(--accent); }
+.ai-compose { display: grid; gap: 10px; margin-top: 18px; }
+.ai-compose label { display: grid; gap: 8px; }
+.ai-compose button { justify-self: end; }

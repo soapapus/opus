@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 export type CalView = 'month' | 'week' | 'day'
-export type MenuKey = 'calendar' | 'memo' | 'scratch' | 'settings'
+export type MenuKey = 'calendar' | 'memo' | 'library' | 'ai' | 'scratch' | 'settings'
 
 /** 내 프로필. 이 PC 설정에만 저장하고 밖으로 보내지 않는다 */
 export interface Profile {
@@ -18,7 +18,7 @@ export interface Profile {
 export const EMPTY_PROFILE: Profile = { name: '', role: '', intro: '', email: '', phone: '', photo: '' }
 
 /** 끌 수 있는 메뉴 (설정은 항상 보인다) */
-export const HIDEABLE_MENUS: MenuKey[] = ['calendar', 'memo', 'scratch']
+export const HIDEABLE_MENUS: MenuKey[] = ['calendar', 'memo', 'library', 'ai', 'scratch']
 
 export interface Prefs {
   /** 강조색 (#RRGGBB) */
@@ -96,6 +96,8 @@ export const ACCENTS: { name: string; hex: string }[] = [
 export const MENU_DEFAULT: Record<MenuKey, string> = {
   calendar: '캘린더',
   memo: '메모',
+  library: '자료실',
+  ai: 'AI',
   scratch: '빠른 메모',
   settings: '설정'
 }

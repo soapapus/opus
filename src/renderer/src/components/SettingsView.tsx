@@ -299,11 +299,10 @@ export function SettingsView({
 
       <Section
         id="google"
-        title="Google 캘린더"
+        title="Google 연동"
         desc={
           <>
-            Google 계정의 일정을 <b>읽어 오기만</b> 해요. Opus에서 고치거나 지울 수 없고, Google 쪽에도 아무것도 쓰지 않아요. 연결하지 않으면 밖으로 나가는 통신이
-            없어요.
+            한곳에서 캘린더 권한, Drive 백업·자료실, Gemini API를 설정해요. 선택한 권한으로 Google 계정을 연결하고, Gemini 키는 따로 저장해요.
           </>
         }
       >
@@ -360,7 +359,7 @@ export function SettingsView({
         )}
       </Section>
 
-      <Section id="about" title="정보" desc="나만 쓰는 개인 워크스페이스예요. 모든 데이터는 이 PC 안에 있어요.">
+      <Section id="about" title="정보" desc="기록은 이 PC에 저장하고, 연결한 서비스에는 선택한 기능으로 전송해요.">
         <Row label="버전">
           <span className="mono">Opus {info?.appVersion ?? ''}</span>
         </Row>
