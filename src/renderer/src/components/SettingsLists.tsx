@@ -23,21 +23,26 @@ export function Toggle({ on, label, disabled, onChange }: { on: boolean; label: 
   )
 }
 
+/** 파일을 data URL로 읽는다. 설치본의 보안 정책(CSP)은 blob: 이미지를 막으므로 data: 로만 연다 */
+function readAsDataUrl(file: File): Promise<string> {
+  return new Promise((ok, fail) => {
+    const r = new FileReader()
+    r.onload = () => ok(String(r.result))
+    r.onerror = () => fail(r.error ?? new Error('read'))
+    r.readAsDataURL(file)
+  })
+}
+
 /** 사진을 정사각형 96px로 줄여 data URL로 만든다 (설정 파일을 가볍게) */
 async function shrinkPhoto(file: File): Promise<string> {
-  const url = URL.createObjectURL(file)
-  try {
-    const img = new Image()
-    img.src = url
-    await img.decode()
-    const s = Math.min(img.naturalWidth, img.naturalHeight)
-    const c = document.createElement('canvas')
-    c.width = c.height = 96
-    c.getContext('2d')!.drawImage(img, (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s, 0, 0, 96, 96)
-    return c.toDataURL('image/jpeg', 0.85)
-  } finally {
-    URL.revokeObjectURL(url)
-  }
+  const img = new Image()
+  img.src = await readAsDataUrl(file)
+  await img.decode()
+  const s = Math.min(img.naturalWidth, img.naturalHeight)
+  const c = document.createElement('canvas')
+  c.width = c.height = 96
+  c.getContext('2d')!.drawImage(img, (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s, 0, 0, 96, 96)
+  return c.toDataURL('image/jpeg', 0.85)
 }
 
 /** 왼쪽 아래 이름 카드를 누르면 뜨는 프로필 팝업. 저장을 눌러야 바뀐다 */
@@ -88,7 +93,7 @@ export function ProfileDialog({ prefs, onSave, onClose }: { prefs: Prefs; onSave
                 set({ photo: await shrinkPhoto(f) })
                 setMsg('')
               } catch {
-                setMsg('사진을 읽지 못했어요')
+                setMsg('사진을 읽지 못했어요. JPG·PNG 파일을 골라 주세요')
               }
             }}
           />

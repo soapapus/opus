@@ -2,7 +2,7 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { CloudService, type CloudDeps } from '../src/main/external/cloud'
+import { CloudService, DEFAULT_MODEL, geminiError, isRetiredModel, type CloudDeps } from '../src/main/external/cloud'
 import { GoogleClient, SCOPE_DRIVE, SCOPE_READ, SCOPE_WRITE } from '../src/main/external/google'
 import { createBackup, listBackups } from '../src/main/backup/backup'
 import { unzipSync } from 'fflate'
@@ -173,4 +173,21 @@ it('Gemini 응답 도중 대화 파일이 바뀌어도 양쪽 대화와 새 답�
   await expect(pending).rejects.toThrow('별도 대화')
   expect(t.service.messages()[0].text).toBe('다른 PC의 대화')
   expect(t.service.archives()[0].messages.map(m => m.text)).toEqual(['진행 중 질문', '늦게 도착한 답변'])
+})
+
+describe('종료된 Gemini 모델', () => {
+  it('gemini-1.5-flash 같은 옛 모델은 현재 기본 모델로 바꿔 요청한다', async () => {
+    const t = setup()
+    mkdirSync(join(t.root, 'local'), { recursive: true })
+    writeFileSync(join(t.root, 'local', 'cloud.json'), JSON.stringify({ autoBackup: false, pending: [], model: 'gemini-1.5-flash', deviceId: 'd', sequence: 0 }))
+    t.service.configureAi('key', 'gemini-1.5-flash')
+    expect(t.service.state().aiModel).toBe(DEFAULT_MODEL)
+    await t.service.send('질문')
+    expect(t.calls.at(-1)!.url).toContain(`/models/${DEFAULT_MODEL}:generateContent`)
+    expect(isRetiredModel('gemini-2.5-flash')).toBe(false)
+  })
+  it('404·키 오류는 고칠 방법을 알려 준다', () => {
+    expect(geminiError(404, 'gemini-x')).toContain('찾을 수 없어요')
+    expect(geminiError(403, 'm')).toContain('API 키')
+  })
 })
