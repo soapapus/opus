@@ -248,3 +248,20 @@ describe('여러 AI 대화', () => {
     expect(await t.service.models()).toEqual([DEFAULT_MODEL, 'gemini-2.5-flash'])
   })
 })
+
+describe('종료된 Gemini 모델', () => {
+  it('gemini-1.5-flash 같은 옛 모델은 현재 기본 모델로 바꿔 요청한다', async () => {
+    const t = setup()
+    mkdirSync(join(t.root, 'local'), { recursive: true })
+    writeFileSync(join(t.root, 'local', 'cloud.json'), JSON.stringify({ autoBackup: false, pending: [], model: 'gemini-1.5-flash', deviceId: 'd', sequence: 0 }))
+    t.service.configureAi('key', 'gemini-1.5-flash')
+    expect(t.service.state().aiModel).toBe(DEFAULT_MODEL)
+    await t.service.send('질문')
+    expect(t.calls.at(-1)!.url).toContain(`/models/${DEFAULT_MODEL}:generateContent`)
+    expect(isRetiredModel('gemini-2.5-flash')).toBe(false)
+  })
+  it('404·키 오류는 고칠 방법을 알려 준다', () => {
+    expect(geminiError(404, 'gemini-x')).toContain('찾을 수 없어요')
+    expect(geminiError(403, 'm')).toContain('API 키')
+  })
+})
