@@ -59,7 +59,8 @@ export class LocalFiles {
   }
   async address(address: string): Promise<FileRef> {
     if (typeof address !== 'string' || !isAbsolute(address)) throw new Error('PC의 전체 폴더 경로를 입력해 주세요')
-    const path = resolve(address)
+    // Windows의 짧은 경로명(예: RUNNER~1)도 등록 시 realpath와 같은 기준으로 비교한다.
+    const path = await realpath(resolve(address))
     const roots = this.roots().filter(r => within(r.path, path)).sort((a, b) => b.path.length - a.path.length)
     if (!roots.length) throw new Error('이 경로는 등록된 폴더 밖이에요. 폴더 등록을 먼저 해 주세요')
     const ref = { rootId: roots[0].id, relativePath: relative(roots[0].path, path) }

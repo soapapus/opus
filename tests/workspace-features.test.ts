@@ -37,6 +37,13 @@ describe('PC 자료실 실제 파일 작업', () => {
     expect(existsSync(join(t.left, '한글.txt'))).toBe(false)
     expect(existsSync(join(t.left, '새 기록'))).toBe(true)
   })
+  it('등록 경로의 별칭으로 주소를 입력해도 실제 폴더 안에서 탐색한다', async () => {
+    const t = setup(), { a } = await roots(t)
+    const alias = join(t.dir, 'folder-alias')
+    symlinkSync(t.left, alias, process.platform === 'win32' ? 'junction' : 'dir')
+    expect(await t.files.address(join(alias, '하위'))).toEqual({ rootId: a, relativePath: '하위' })
+    await expect(t.files.address(t.outside)).rejects.toThrow('등록된 폴더 밖')
+  })
   it('파일과 폴더를 복사하고 원본·하위 파일 내용을 그대로 보존한다', async () => {
     const t = setup(), { a, b } = await roots(t)
     const result = await t.files.transfer([{ rootId: a, relativePath: '한글.txt' }, { rootId: a, relativePath: '하위' }], { rootId: b, relativePath: '' }, false)
