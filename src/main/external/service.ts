@@ -3,7 +3,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import type { ConnectionsState, ExternalCalendar, ExternalEvent, Note, Provider, ProviderState } from '../../shared/types'
-import { GOOGLE_ENDPOINTS, GoogleClient, SCOPE_WRITE, type GoogleEndpoints, type Tokens } from './google'
+import { GOOGLE_ENDPOINTS, GoogleClient, SCOPE_WRITE, SCOPE_DRIVE, type GoogleEndpoints, type Tokens } from './google'
 import { NAVER_CALLBACK_PATH, NAVER_CALLBACK_PORT, NAVER_ENDPOINTS, NaverClient, type NaverEndpoints } from './naver'
 import { makePkce, randomString, startLoopback, type FetchFn } from './oauth'
 
@@ -137,7 +137,8 @@ export class ExternalService {
   saveKeys(provider: Provider, clientId: string, clientSecret: string): ConnectionsState {
     const sec = this.readSecure()
     const prev = sec[provider] ?? {}
-    sec[provider] = { ...prev, clientId: clientId.trim(), clientSecret: clientSecret.trim() } as never
+    const keep = prev.clientId === clientId.trim() ? prev : {}
+    sec[provider] = { ...keep, clientId: clientId.trim(), clientSecret: clientSecret.trim() } as never
     this.writeSecure(sec)
     delete this.messages[provider]
     return this.state()
@@ -178,27 +179,37 @@ export class ExternalService {
     return next.accessToken
   }
 
-  connectGoogle(write = false): Promise<ConnectionsState> {
+  hasDriveAccess(): boolean {
+    return !!this.readSecure().google?.tokens?.scope.split(' ').includes(SCOPE_DRIVE)
+  }
+
+  async driveToken(): Promise<string> {
+    if (!this.hasDriveAccess()) throw new Error('설정에서 Google Drive 권한을 선택하고 다시 연결해 주세요')
+    return this.googleToken()
+  }
+
+  connectGoogle(write = false, drive = false): Promise<ConnectionsState> {
     return this.guard('google', async () => {
       const client = this.googleClient()
       const { verifier, challenge } = makePkce()
       const state = randomString(24)
       const lb = await startLoopback({ path: '/oauth/google', state })
       try {
-        await this.d.openUrl(client.buildAuthUrl({ redirectUri: lb.redirectUri, challenge, state, write }))
+        await this.d.openUrl(client.buildAuthUrl({ redirectUri: lb.redirectUri, challenge, state, write, drive }))
         const code = await lb.code
         const tokens = await client.exchangeCode(code, verifier, lb.redirectUri)
         const sec = this.readSecure()
         sec.google = { ...sec.google, tokens }
-        this.writeSecure(sec)
         const cache = this.readCache()
         const list = await client.listCalendars(tokens.accessToken)
         const primary = list.find((c) => c.primary)
+        if (!primary?.id) throw new Error('연결 계정을 확인하지 못했어요. 기본 캘린더 권한을 확인해 주세요')
         const keep = new Map(cache.google.calendars.map((c) => [c.id, c.selected]))
         cache.google.calendars = list.map((c) => ({ ...c, selected: keep.get(c.id) ?? c.primary }))
         cache.google.account = primary?.id ?? cache.google.account
         cache.google.writeEnabled = tokens.scope.split(' ').includes(SCOPE_WRITE)
         this.writeCache(cache)
+        this.writeSecure(sec)
       } finally {
         lb.close()
       }

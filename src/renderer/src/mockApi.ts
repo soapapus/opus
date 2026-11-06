@@ -1,7 +1,7 @@
 // 브라우저에서 화면만 미리 볼 때 쓰는 가짜 api (Electron 안에서는 쓰지 않는다).
 import { builtinHolidays } from '../../shared/holidays'
 import { changedSince, conflictTitle } from '../../shared/sync'
-import type { Api, ConnectionsState, ExternalEvent, Note, NoteSummary, WorkspaceInfo } from '../../shared/types'
+import type { AiMessage, CloudState, Api, ConnectionsState, ExternalEvent, Note, NoteSummary, WorkspaceInfo } from '../../shared/types'
 
 export function installMockApi(): void {
   if ((window as unknown as { api?: Api }).api) return
@@ -102,7 +102,37 @@ export function installMockApi(): void {
     documentCount: all().filter((n) => n.kind === 'document').length,
     scratchShortcut: 'CommandOrControl+Shift+Space'
   })
+  const cloudStates = new Map<string, CloudState>()
+  const chats = new Map<string, AiMessage[]>()
+  const cloudState = (): CloudState => {
+    if (!cloudStates.has(workspaceId)) cloudStates.set(workspaceId, { driveConfigured: false, driveConnected: false, autoBackup: false, pendingBackups: 0, aiConfigured: false, aiModel: 'gemini-flash-latest' })
+    return cloudStates.get(workspaceId)!
+  }
+  const previewFolder = { id: 'preview-opus', name: 'Opus 미리보기', mimeType: 'application/vnd.google-apps.folder' }
   const api: Api = {
+    cloudState: async () => ({ ...cloudState() }),
+    cloudSaveKeys: async () => { cloudState().driveConfigured = true; conn.google.configured = true; return { ...cloudState() } },
+    driveConnect: async (write) => { cloudState().driveConnected = true; conn.google.connected = true; conn.google.writeEnabled = !!write; return { ...cloudState() } },
+    driveDisconnect: async () => { cloudState().driveConnected = false; cloudState().autoBackup = false; conn.google.connected = false; return { ...cloudState() } },
+    driveFolders: async () => [previewFolder],
+    driveSelectFolder: async () => { cloudState().folder = previewFolder; cloudState().autoBackup = false; return { ...cloudState() } },
+    driveFiles: async () => [],
+    driveAutoBackup: async (on) => { cloudState().autoBackup = on; return { ...cloudState() } },
+    driveBackup: async () => { cloudState().lastBackup = new Date().toISOString(); return { ...cloudState() } },
+    driveOpen: async () => undefined,
+    driveDownload: async () => false,
+    driveMergePreview: async () => ({ token: 'preview-merge', added: 2, updated: 1, conflicts: 1, unchanged: 3, archived: 0, aiMessages: 0, aiArchives: 0 }),
+    driveMergeApply: async () => ({ token: 'preview-merge', added: 2, updated: 1, conflicts: 1, unchanged: 3, archived: 0, aiMessages: 0, aiArchives: 0 }),
+    driveAutoMerge: async (on) => { cloudState().autoMerge = on; if (on) cloudState().autoBackup = true; return { ...cloudState() } },
+    aiConfigure: async (key, model) => { if (key.trim()) cloudState().aiConfigured = true; cloudState().aiModel = model; return { ...cloudState() } },
+    aiMessages: async () => [...(chats.get(workspaceId) ?? [])],
+    aiArchives: async () => [],
+    aiSend: async (text) => {
+      const history = chats.get(workspaceId) ?? []
+      history.push({ role: 'user', text, created: new Date().toISOString() }, { role: 'model', text: '미리보기 응답이에요. 실제 Gemini 호출은 데스크톱 앱에서 이뤄져요.', created: new Date().toISOString() })
+      chats.set(workspaceId, history)
+      return [...history]
+    },
     info,
     createWorkspace: async (name) => {
       if (!name.trim() || workspaces.some(w => w.name === name.trim())) throw new Error('이름을 확인해 주세요')

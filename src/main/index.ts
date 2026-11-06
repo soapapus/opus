@@ -3,11 +3,13 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileS
 import { holidaysForYear, parseHolidayIcs, type Holiday } from '../shared/holidays'
 import { appendFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { AppState } from './app'
 import { requestFlush } from './flush'
 import type { CreateNoteInput, NoteKind, Provider, SaveNoteInput, WindowAction } from '../shared/types'
 import { ExternalService, type Vault } from './external/service'
+import { CloudService } from './external/cloud'
+import { createBackup } from './backup/backup'
 
 // 설정 폴더는 %APPDATA%\\Opus. 예전 라임 다이어리를 쓰던 PC면 처음 한 번 설정·연결 키를 복사해 온다.
 // (예전 폴더를 그대로 쓰면 라임 다이어리가 켜져 있을 때 Opus가 '이미 실행 중'으로 막힌다)
@@ -73,6 +75,27 @@ function external(): ExternalService {
   return ext
 }
 const SCRATCH_KEY = 'CommandOrControl+Shift+Space'
+const clouds = new Map<string, CloudService>()
+function cloud(): CloudService {
+  const key = state.localDir
+  let service = clouds.get(key)
+  if (!service) {
+    const dataDir = state.dataDir
+    const backupDir = state.backupDir
+    const extService = external()
+    service = new CloudService({ localDir: key, dataDir, vault, workspaceId: state.workspace.id,
+      token: () => extService.driveToken(), connected: () => extService.hasDriveAccess(),
+      configured: () => extService.state().google.configured,
+      account: () => extService.state().google.account,
+      snapshot: () => createBackup(dataDir, state.settings.get().workspaces?.find(w => w.dataDir === dataDir)?.backupDir ?? backupDir) })
+    clouds.set(key, service)
+  }
+  return service
+}
+async function flushWindows(): Promise<void> {
+  if (win && !win.isDestroyed()) await requestFlush(win, ipcMain)
+  if (scratchWin && !scratchWin.isDestroyed()) await requestFlush(scratchWin, ipcMain)
+}
 
 const isDev = !app.isPackaged && !!process.env['ELECTRON_RENDERER_URL']
 
@@ -190,6 +213,65 @@ function registerIpc(): void {
   h('scratchHide', () => scratchWin?.hide())
   h('scratchOpen', () => showScratch())
   h('connections', () => external().state())
+  h('cloudState', () => cloud().state())
+  h('cloudSaveKeys', (id: string, secret: string) => {
+    external().saveKeys('google', id, secret)
+    return cloud().state()
+  })
+  h('driveConnect', async (write?: boolean) => {
+    const c = cloud()
+    const result = await external().connectGoogle(!!write, true)
+    if (result.google.message) throw new Error(result.google.message)
+    return c.state()
+  })
+  h('driveDisconnect', async () => {
+    cloud().setAutoBackup(false)
+    await external().disconnect('google')
+    return cloud().state()
+  })
+  h('driveFolders', () => cloud().folders())
+  h('driveSelectFolder', (id: string) => cloud().selectFolder(id))
+  h('driveFiles', () => cloud().files())
+  h('driveAutoBackup', (enabled: boolean) => cloud().setAutoBackup(!!enabled))
+  h('driveAutoMerge', (enabled: boolean) => cloud().setAutoMerge(!!enabled))
+  h('driveMergePreview', async (id: string) => {
+    const c = cloud()
+    await flushWindows()
+    return c.previewMerge(id)
+  })
+  h('driveMergeApply', async (token: string) => {
+    const c = cloud(); const dir = state.dataDir
+    await flushWindows()
+    const result = c.applyMerge(token)
+    if (state.dataDir === dir) { state.service.refreshIndex(); win?.webContents.send('app:files-changed') }
+    notifyInfoChanged()
+    return result
+  })
+  h('driveBackup', async () => {
+    const c = cloud()
+    await flushWindows()
+    return c.backup()
+  })
+  h('driveOpen', async (id: string) => {
+    const file = await cloud().file(id)
+    await shell.openExternal(`https://drive.google.com/file/d/${encodeURIComponent(file.id)}/view`)
+  })
+  h('driveDownload', async (id: string) => {
+    const c = cloud()
+    const file = await c.file(id)
+    const target = await dialog.showSaveDialog(win!, { title: '자료 내려받기', defaultPath: basename(file.name) })
+    if (target.canceled || !target.filePath) return false
+    const bytes = await c.download(id)
+    writeFileSync(`${target.filePath}.tmp`, bytes)
+    // 내려받는 도중 실패해도 기존 파일은 보존한다.
+    const { renameSync } = await import('node:fs')
+    renameSync(`${target.filePath}.tmp`, target.filePath)
+    return true
+  })
+  h('aiConfigure', (key: string, model: string) => cloud().configureAi(key, model))
+  h('aiMessages', () => cloud().messages())
+  h('aiArchives', () => cloud().archives())
+  h('aiSend', (text: string) => cloud().send(text))
   h('externalByMonth', (m: string) => external().externalByMonth(m))
   h('saveKeys', (p: Provider, id: string, secret: string) => external().saveKeys(p, id, secret))
   h('connect', async (p: Provider, write?: boolean) => {
@@ -486,6 +568,20 @@ if (!gotLock && !process.env['LD_DATA_DIR']) {
       /* 백업 실패가 앱 실행을 막으면 안 된다 */
     }
     createWindow()
+    // Drive 자동 백업은 사용자가 켠 공간만, 로컬 저장을 마친 뒤 시도한다.
+    const cloudTick = async (): Promise<void> => {
+      try {
+        const c = cloud()
+        const dir = state.dataDir
+        if (!c.state().autoBackup) return
+        await flushWindows()
+        try { await c.mergeAutomatic() } catch { /* 원격 병합 실패여도 내 기록의 백업은 계속한다. */ }
+        if (state.dataDir === dir) checkFilesChanged()
+        await c.backup(true)
+      } catch { /* 네트워크·저장 오류가 앱 실행을 막지 않는다. 설정에서 상태를 확인한다. */ }
+    }
+    setTimeout(() => void cloudTick(), 10_000)
+    setInterval(() => void cloudTick(), 5 * 60_000)
     // Google에 연결돼 있을 때만, 마지막 동기화가 1시간 넘었으면 조용히 갱신한다 (연결 안 했으면 아무 통신도 없다)
     {
       const g = external().state().google

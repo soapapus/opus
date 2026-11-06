@@ -5,6 +5,7 @@ import { postForm, type FetchFn } from './oauth'
 
 export const SCOPE_READ = 'https://www.googleapis.com/auth/calendar.readonly'
 export const SCOPE_WRITE = 'https://www.googleapis.com/auth/calendar.events'
+export const SCOPE_DRIVE = 'https://www.googleapis.com/auth/drive'
 
 export interface GoogleEndpoints {
   auth: string
@@ -95,17 +96,17 @@ export class GoogleClient {
     private clock: () => number = Date.now
   ) {}
 
-  buildAuthUrl(p: { redirectUri: string; challenge: string; state: string; write: boolean }): string {
+  buildAuthUrl(p: { redirectUri: string; challenge: string; state: string; write: boolean; drive?: boolean }): string {
     const q = new URLSearchParams({
       client_id: this.cfg.clientId,
       redirect_uri: p.redirectUri,
       response_type: 'code',
-      scope: p.write ? `${SCOPE_READ} ${SCOPE_WRITE}` : SCOPE_READ,
+      scope: [SCOPE_READ, ...(p.write ? [SCOPE_WRITE] : []), ...(p.drive ? [SCOPE_DRIVE] : [])].join(' '),
       code_challenge: p.challenge,
       code_challenge_method: 'S256',
       state: p.state,
       access_type: 'offline',
-      prompt: 'consent'
+      prompt: 'select_account consent'
     })
     return `${this.ep.auth}?${q.toString()}`
   }

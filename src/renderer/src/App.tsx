@@ -9,6 +9,7 @@ import { ConfirmDialog } from './components/Dialogs'
 import { DayPanel } from './components/DayPanel'
 import { MemoEditor } from './components/MemoEditor'
 import { applyMemoFilter, MemoView, type MemoFilter } from './components/MemoView'
+import { AiView, LibraryView } from './components/CloudViews'
 import { SettingsView } from './components/SettingsView'
 import { ProfileDialog } from './components/SettingsLists'
 import { googleSignal, Rail, TopBar, Workspace, type View } from './components/Shell'
@@ -509,8 +510,8 @@ export function App() {
         onKind={(k) => void changeKind(k)}
         onMakeEvent={(d) => void makeEventFromDoc(d)}
         onDropItem={(p) => void dropOnDoc(p)}
-        exportTargets={[]}
-        onExport={() => undefined}
+        exportTargets={note.kind === 'event' ? [...(conn?.google.connected && conn.google.writeEnabled ? ['google' as const] : []), ...(conn?.naver.connected ? ['naver' as const] : [])] : []}
+        onExport={(p) => { void editorHandle.current?.flush().then(() => window.api.exportEvent(note.id, p)).then(say).catch(e => say(String(e))) }}
       />
     )
   }
@@ -519,7 +520,7 @@ export function App() {
   const dayW = live_w.day ?? prefs.dayWidth
   const crumbs = [
     'Opus',
-    view === 'calendar' ? menuName(prefs, 'calendar') : view === 'memo' ? menuName(prefs, 'memo') : menuName(prefs, 'settings'),
+    menuName(prefs, view),
     ...(view === 'memo' ? [memoFilter.mode === 'tag' ? memoFilter.tag : memoFilter.mode === 'pinned' ? '진행 중' : memoFilter.mode === 'today' ? '오늘' : '모든 메모'] : []),
     ...(view === 'calendar' ? [calView === 'month' ? '월' : calView === 'week' ? '주' : '일'] : [])
   ]
@@ -673,6 +674,8 @@ export function App() {
           />
         )}
 
+        {view === 'library' && <LibraryView onSettings={() => void openSettings('google')} />}
+        {view === 'ai' && <AiView onSettings={() => void openSettings('google')} />}
         {view === 'settings' && (
           <SettingsView
             onWorkspace={(id) => void switchWorkspace(id)}

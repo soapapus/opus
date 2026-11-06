@@ -98,6 +98,24 @@ export type WindowAction = 'minimize' | 'maximize' | 'close'
 
 /** preload가 화면에 열어 주는 기능 목록 (window.api) */
 export interface Api {
+  cloudState(): Promise<CloudState>
+  cloudSaveKeys(clientId: string, clientSecret: string): Promise<CloudState>
+  driveConnect(calendarWrite?: boolean): Promise<CloudState>
+  driveDisconnect(): Promise<CloudState>
+  driveFolders(): Promise<DriveFile[]>
+  driveSelectFolder(id: string): Promise<CloudState>
+  driveFiles(): Promise<DriveFile[]>
+  driveBackup(): Promise<CloudState>
+  driveAutoBackup(enabled: boolean): Promise<CloudState>
+  driveOpen(id: string): Promise<void>
+  driveDownload(id: string): Promise<boolean>
+  driveMergePreview(id: string): Promise<MergeReport>
+  driveMergeApply(token: string): Promise<MergeReport>
+  driveAutoMerge(enabled: boolean): Promise<CloudState>
+  aiConfigure(key: string, model: string): Promise<CloudState>
+  aiMessages(): Promise<AiMessage[]>
+  aiArchives(): Promise<{ id: string; messages: AiMessage[] }[]>
+  aiSend(text: string): Promise<AiMessage[]>
   info(): Promise<AppInfo>
   createWorkspace(name: string): Promise<AppInfo>
   switchWorkspace(id: string): Promise<AppInfo>
@@ -158,6 +176,41 @@ export interface Api {
   onInfoChanged(handler: () => void): () => void
   /** 다른 PC(동기화 폴더)에서 메모 파일이 바뀐 것을 찾았을 때 */
   onFilesChanged(handler: () => void): () => void
+}
+
+export interface DriveFile {
+  id: string
+  name: string
+  mimeType: string
+  modifiedTime?: string
+  size?: string
+  driveId?: string
+  appProperties?: Record<string, string>
+}
+export interface MergeReport {
+  token: string
+  added: number
+  updated: number
+  conflicts: number
+  unchanged: number
+  archived: number
+  aiMessages: number
+  aiArchives: number
+}
+export interface AiMessage { role: 'user' | 'model'; text: string; created: string }
+export interface CloudState {
+  driveConfigured: boolean
+  driveConnected: boolean
+  driveAccount?: string
+  folder?: DriveFile
+  autoBackup: boolean
+  autoMerge?: boolean
+  lastMerge?: string
+  pendingBackups: number
+  lastBackup?: string
+  error?: string
+  aiConfigured: boolean
+  aiModel: string
 }
 
 export type Provider = 'google' | 'naver'

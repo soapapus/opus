@@ -6,12 +6,13 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { unzipSync, zipSync } from 'fflate'
+import { randomUUID } from 'node:crypto'
 import { pad2 } from '../../shared/calendar'
 import { toLocalIso } from '../../shared/text'
 
 const PREFIX = 'Opus-backup-'
 /** 새 이름(Opus-backup-)과 0.3.2까지의 옛 이름(LimeDiary-backup-) 백업을 모두 읽는다 */
-const NAME_PATTERN = /^(?:Opus|LimeDiary)-backup-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})\.zip$/
+const NAME_PATTERN = /^(?:Opus|LimeDiary)-backup-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})(?:-[a-f0-9-]+)?\.zip$/
 
 /** 백업에 담지 않는 폴더 (데이터 폴더 기준 상대 경로) */
 const SKIP_DIRS = ['personal/external']
@@ -56,7 +57,8 @@ export function createBackup(dataDir: string, backupDir: string, now: Date = new
   const files = collectFiles(dataDir, backupDir)
   if (Object.keys(files).length === 0) return null
   mkdirSync(backupDir, { recursive: true })
-  const target = join(backupDir, backupFileName(now))
+  let target = join(backupDir, backupFileName(now))
+  if (existsSync(target)) target = target.replace(/\.zip$/, `-${randomUUID()}.zip`)
   const tmp = `${target}.tmp`
   writeFileSync(tmp, zipSync(files, { level: 6 }))
   renameSync(tmp, target)

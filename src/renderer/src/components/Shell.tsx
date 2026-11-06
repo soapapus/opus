@@ -4,14 +4,14 @@ import { IconCalendar, IconCheck, IconChevronDown, IconGear, IconNotes, IconPlus
 import { initialOf, menuName, menuShown, profileName, type Prefs } from '../prefs'
 import type { MemoFilter } from './MemoView'
 
-export type View = 'calendar' | 'memo' | 'settings'
+export type View = 'calendar' | 'memo' | 'library' | 'ai' | 'settings'
 
 export const SETTING_SECTIONS = [
   { id: 'workspace', label: '워크스페이스' },
   { id: 'menu', label: '메뉴' },
   { id: 'look', label: '화면 · 강조색' },
   { id: 'calendar', label: '캘린더' },
-  { id: 'google', label: 'Google 캘린더' },
+  { id: 'google', label: 'Google 연동' },
   { id: 'memo', label: '메모 보관 · 백업' },
   { id: 'about', label: '정보' }
 ]
@@ -45,6 +45,8 @@ export function Rail({ view, prefs, onView, onScratch }: { view: View; prefs: Pr
       </div>
       {menuShown(prefs, 'calendar') && item('calendar', <IconCalendar size={20} />, menuName(prefs, 'calendar'))}
       {menuShown(prefs, 'memo') && item('memo', <IconNotes size={20} />, menuName(prefs, 'memo'))}
+      {menuShown(prefs, 'library') && item('library', <IconNotes size={20} />, menuName(prefs, 'library'))}
+      {menuShown(prefs, 'ai') && item('ai', <IconQuick />, menuName(prefs, 'ai'))}
       {menuShown(prefs, 'scratch') && (
         <button className="rail-btn" aria-label={menuName(prefs, 'scratch')} title={`${menuName(prefs, 'scratch')} (Ctrl+Shift+Space)`} onClick={onScratch}>
           <IconQuick />
@@ -123,6 +125,7 @@ export function Workspace({
             <span className="cnt">{docCount}</span>
           </button>
         )}
+        {(['library', 'ai'] as const).filter(v => menuShown(prefs, v)).map(v => <button key={v} className={`ws-item ${view === v ? 'on' : ''}`} onClick={() => onView(v)}>{menuName(prefs, v)}</button>)}
         {menuShown(prefs, 'scratch') && (
           <button className="ws-item" onClick={onScratch}>
             {menuName(prefs, 'scratch')}

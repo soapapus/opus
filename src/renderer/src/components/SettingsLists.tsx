@@ -262,6 +262,8 @@ export function WorkspaceList({ info, onChanged, onSwitch }: { info: AppInfo | n
 const MENU_ICON: Record<MenuKey, ReactNode> = {
   calendar: <IconCalendar size={16} />,
   memo: <IconNotes size={16} />,
+  library: <IconNotes size={16} />,
+  ai: <IconBolt size={16} />,
   scratch: <IconBolt size={16} />,
   settings: <IconGear size={16} />
 }
