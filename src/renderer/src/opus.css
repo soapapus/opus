@@ -2147,3 +2147,126 @@ span.sig {
 .ai-compose { display: grid; gap: 10px; margin-top: 18px; }
 .ai-compose label { display: grid; gap: 8px; }
 .ai-compose button { justify-self: end; }
+
+/* 월 보기: 달력은 위 카드, 이번 달 일정은 아래 카드 (주인 요청 2026-11-06) */
+.cal-stack {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+.cal-stack > .calv {
+  flex: 1 1 auto;
+}
+.cal-stack.with-agenda > .calv {
+  flex: 0 0 auto;
+  height: clamp(360px, 58%, 560px);
+}
+.cal-agenda {
+  flex: 1 1 0;
+  min-height: 120px;
+  flex-direction: column;
+}
+.cal-agenda-h {
+  height: 44px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--hair);
+  font-size: 13px;
+}
+.cal-agenda-h b {
+  font-size: 14px;
+}
+.cal-agenda-h .muted {
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+.cal-agenda-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 12px 8px;
+}
+.cal-agenda-empty {
+  color: var(--text-3);
+  font-size: 12.5px;
+  padding: 14px 4px;
+}
+.ag-row {
+  width: 100%;
+  height: 34px;
+  display: grid;
+  grid-template-columns: 104px 4px minmax(0, 1fr) 48px 58px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 6px;
+  border: 0;
+  border-bottom: 1px solid var(--hair);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.ag-row:hover,
+.ag-row.on {
+  background: var(--well);
+}
+.ag-row.past {
+  opacity: 0.55;
+}
+.ag-date {
+  color: var(--text-2);
+  font-size: 12px;
+}
+.ag-bar {
+  width: 4px;
+  height: 18px;
+  border-radius: 2px;
+  background: var(--c-event, var(--accent));
+}
+.ag-row.note .ag-bar {
+  background: var(--hair2);
+}
+.ag-row.google .ag-bar {
+  background: var(--c-google, #b9d7f2);
+}
+.ag-title {
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ag-time {
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+.ag-kind {
+  justify-self: end;
+  font-size: 11px;
+  border: 1px solid var(--hair2);
+  border-radius: 10px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+.with-agenda .mcell .chip2 .cm {
+  display: none;
+}
+.with-agenda .mcell .chips {
+  flex-direction: row;
+  align-items: center;
+}
+.with-agenda .mcell .chip2 {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.with-agenda .more2 {
+  flex: none;
+  padding-left: 0;
+}
