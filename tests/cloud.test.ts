@@ -97,26 +97,29 @@ describe('Gemini와 대화 보존', () => {
     const t = setup(); t.service.configureAi('private-api-key', 'gemini-flash-latest')
     expect(readFileSync(join(t.root, 'local', 'gemini.bin'), 'utf8')).not.toContain('private-api-key')
     expect(JSON.stringify(t.service.state())).not.toContain('private-api-key')
-    expect(await t.service.send('직접 쓴 질문')).toHaveLength(2)
+    const chat = await t.service.send(null, '직접 쓴 질문')
+    expect(chat.messages).toHaveLength(2)
     const request = t.calls.find(c => c.url.includes('generativelanguage'))!
     expect(String(request.init?.body)).toContain('직접 쓴 질문')
     expect(String(request.init?.body)).not.toContain('보존할 기록')
     expect(request.url).not.toContain('private-api-key')
     const zip = createBackup(t.data, join(t.root, 'backups'))!
     const files = unzipSync(readFileSync(zip))
-    expect(files['personal/ai/conversation.json']).toBeTruthy()
+    expect(files[`personal/ai/chats/${chat.id}.json`]).toBeTruthy()
     expect(Object.keys(files).some(f => f.includes('.bin'))).toBe(false)
-    expect(new CloudService(t.deps).messages()).toHaveLength(2)
+    expect(new CloudService(t.deps).chat(chat.id).messages).toHaveLength(2)
   })
   it('요청 실패 때도 사용자가 작성한 질문을 저장하며 서버 응답의 비밀을 노출하지 않는다', async () => {
     const t = setup(); t.service.configureAi('key', 'gemini-flash-latest'); t.failAi()
-    await expect(t.service.send('잃으면 안 되는 질문')).rejects.toThrow('429')
-    expect(new CloudService(t.deps).messages()).toEqual([expect.objectContaining({ text: '잃으면 안 되는 질문', role: 'user' })])
+    await expect(t.service.send(null, '잃으면 안 되는 질문')).rejects.toThrow('429')
+    const [only] = new CloudService(t.deps).chatList()
+    expect(new CloudService(t.deps).chat(only.id).messages).toEqual([expect.objectContaining({ text: '잃으면 안 되는 질문', role: 'user' })])
   })
   it('손상된 대화 파일을 빈 대화로 덮어쓰지 않는다', async () => {
     const t = setup(); t.service.configureAi('key', 'gemini-flash-latest')
-    const path = join(t.data, 'personal', 'ai', 'conversation.json'); mkdirSync(join(t.data, 'personal', 'ai'), { recursive: true }); writeFileSync(path, 'broken')
-    await expect(t.service.send('질문')).rejects.toThrow()
+    const path = join(t.data, 'personal', 'ai', 'chats', 'broken.json'); mkdirSync(join(t.data, 'personal', 'ai', 'chats'), { recursive: true }); writeFileSync(path, 'broken')
+    expect(t.service.chatList()).toEqual([])
+    await expect(t.service.send('broken', '질문')).rejects.toThrow()
     expect(readFileSync(path, 'utf8')).toBe('broken')
   })
 })
@@ -166,13 +169,15 @@ it('Gemini 응답 도중 대화 파일이 바뀌어도 양쪽 대화와 새 답�
   const t = setup(); t.service.configureAi('key', 'gemini-flash-latest')
   let resolve!: (r: Response) => void
   t.deps.fetch = async () => new Promise<Response>(r => { resolve = r })
-  const pending = t.service.send('진행 중 질문')
+  const pending = t.service.send(null, '진행 중 질문')
   await expect(t.service.previewMerge('file')).rejects.toThrow('AI 답변')
-  writeFileSync(join(t.data, 'personal/ai/conversation.json'), JSON.stringify([{ role: 'user', text: '다른 PC의 대화', created: '2026-11-06T10:00:00Z' }]))
+  const [started] = t.service.chatList()
+  writeFileSync(join(t.data, 'personal/ai/chats', `${started.id}.json`), JSON.stringify({ created: '2026-11-06T10:00:00Z', messages: [{ role: 'user', text: '다른 PC의 대화', created: '2026-11-06T10:00:00Z' }] }))
   resolve(Response.json({ candidates: [{ content: { parts: [{ text: '늦게 도착한 답변' }] } }] }))
-  await expect(pending).rejects.toThrow('별도 대화')
-  expect(t.service.messages()[0].text).toBe('다른 PC의 대화')
-  expect(t.service.archives()[0].messages.map(m => m.text)).toEqual(['진행 중 질문', '늦게 도착한 답변'])
+  await expect(pending).rejects.toThrow('갈라진 대화')
+  expect(t.service.chat(started.id).messages[0].text).toBe('다른 PC의 대화')
+  const fork = t.service.chatList().find(c => c.id !== started.id)!
+  expect(t.service.chat(fork.id).messages.map(m => m.text)).toEqual(['진행 중 질문', '늦게 도착한 답변'])
 })
 
 describe('종료된 Gemini 모델', () => {
@@ -182,12 +187,64 @@ describe('종료된 Gemini 모델', () => {
     writeFileSync(join(t.root, 'local', 'cloud.json'), JSON.stringify({ autoBackup: false, pending: [], model: 'gemini-1.5-flash', deviceId: 'd', sequence: 0 }))
     t.service.configureAi('key', 'gemini-1.5-flash')
     expect(t.service.state().aiModel).toBe(DEFAULT_MODEL)
-    await t.service.send('질문')
+    await t.service.send(null, '질문')
     expect(t.calls.at(-1)!.url).toContain(`/models/${DEFAULT_MODEL}:generateContent`)
     expect(isRetiredModel('gemini-2.5-flash')).toBe(false)
   })
   it('404·키 오류는 고칠 방법을 알려 준다', () => {
     expect(geminiError(404, 'gemini-x')).toContain('찾을 수 없어요')
     expect(geminiError(403, 'm')).toContain('API 키')
+  })
+})
+
+describe('여러 AI 대화', () => {
+  it('대화를 따로 저장하고, 이어 쓰면 그 대화에만 붙으며 최근 대화가 위에 온다', async () => {
+    const t = setup(); t.service.configureAi('key', 'gemini-flash-latest')
+    const a = await t.service.send(null, '첫 대화 질문')
+    const b = await t.service.send(null, '둘째 대화 질문')
+    await t.service.send(a.id, '첫 대화 이어서')
+    const list = t.service.chatList()
+    expect(list.map(c => c.id)).toEqual([a.id, b.id])
+    expect(list[0]).toMatchObject({ title: '첫 대화 질문', count: 4 })
+    const body = JSON.parse(String(t.calls.at(-1)!.init?.body))
+    expect(JSON.stringify(body)).toContain('첫 대화 질문')
+    expect(JSON.stringify(body)).not.toContain('둘째 대화 질문')
+  })
+  it('다시 생성은 마지막 질문까지만 보내고 예전 답도 남긴다', async () => {
+    const t = setup(); t.service.configureAi('key', 'gemini-flash-latest')
+    const a = await t.service.send(null, '질문')
+    const again = await t.service.regenerate(a.id)
+    expect(again.messages.map(m => m.role)).toEqual(['user', 'model', 'model'])
+    const body = JSON.parse(String(t.calls.at(-1)!.init?.body)) as { contents: { role: string }[] }
+    expect(body.contents.map(c => c.role)).toEqual(['user'])
+  })
+  it('예전 한 줄 대화와 갈라진 대화는 원본을 두고 목록으로 한 번만 복사한다', () => {
+    const t = setup()
+    const ai = join(t.data, 'personal', 'ai'); mkdirSync(join(ai, 'imports'), { recursive: true })
+    const old = [{ role: 'user', text: '예전 질문', created: '2026-11-05T10:00:00Z' }, { role: 'model', text: '예전 답', created: '2026-11-05T10:00:01Z' }]
+    writeFileSync(join(ai, 'conversation.json'), JSON.stringify(old))
+    writeFileSync(join(ai, 'imports', `${'a'.repeat(64)}.json`), JSON.stringify([{ role: 'user', text: '다른 PC 질문', created: '2026-11-04T10:00:00Z' }]))
+    const list = t.service.chatList()
+    expect(list.map(c => c.title)).toEqual(['예전 질문', '다른 PC 질문 (다른 PC)'])
+    expect(t.service.chatList()).toHaveLength(2)
+    expect(JSON.parse(readFileSync(join(ai, 'conversation.json'), 'utf8'))).toEqual(old)
+  })
+  it('대화 이름을 바꾸고, 이번 달 토큰을 센다', async () => {
+    const t = setup(); t.service.configureAi('key', 'gemini-flash-latest')
+    t.deps.fetch = (async () => Response.json({ candidates: [{ content: { parts: [{ text: '답' }] } }], usageMetadata: { totalTokenCount: 321 } })) as typeof fetch
+    const a = await t.service.send(null, '질문')
+    expect(t.service.renameChat(a.id, '  새 이름  ').title).toBe('새 이름')
+    expect(t.service.chatList()[0].title).toBe('새 이름')
+    expect(t.service.state().aiTokensThisMonth).toBe(321)
+    expect(() => t.service.chat('../outside')).toThrow('대화를 찾을 수 없어요')
+  })
+  it('쓸 수 있는 모델 목록은 대화가 되는 Gemini 모델만, 종료된 모델은 뺀다', async () => {
+    const t = setup(); t.service.configureAi('key', 'gemini-flash-latest')
+    t.deps.fetch = (async () => Response.json({ models: [
+      { name: 'models/gemini-2.5-flash', supportedGenerationMethods: ['generateContent'] },
+      { name: 'models/gemini-1.5-flash', supportedGenerationMethods: ['generateContent'] },
+      { name: 'models/text-embedding-004', supportedGenerationMethods: ['embedContent'] }
+    ] })) as typeof fetch
+    expect(await t.service.models()).toEqual([DEFAULT_MODEL, 'gemini-2.5-flash'])
   })
 })

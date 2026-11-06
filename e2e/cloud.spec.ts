@@ -84,7 +84,9 @@ test('백업 병합을 미리 확인하고 적용하며 갈라진 AI 대화를 �
   await page.evaluate(async () => {
     await window.api.cloudSaveKeys('id', 'secret'); await window.api.driveConnect(); await window.api.driveSelectFolder('folder')
     window.api.driveFiles = async () => [{ id: 'backup', name: 'Opus-백업.zip', mimeType: 'application/zip' }]
-    window.api.aiArchives = async () => [{ id: 'other-pc', messages: [{ role: 'user', text: '회사 PC에서 갈라진 질문', created: '2026-11-06T10:00:00+09:00' }, { role: 'model', text: '보존된 답변', created: '2026-11-06T10:01:00+09:00' }] }]
+    const fork = { id: 'other-pc', title: '회사 PC에서 갈라진 질문 (다른 PC)', created: '2026-11-06T10:00:00+09:00', messages: [{ role: 'user' as const, text: '회사 PC에서 갈라진 질문', created: '2026-11-06T10:00:00+09:00' }, { role: 'model' as const, text: '보존된 답변', created: '2026-11-06T10:01:00+09:00' }] }
+    window.api.aiChats = async () => [{ id: fork.id, title: fork.title, updated: '2026-11-06T10:01:00+09:00', count: 2 }]
+    window.api.aiChat = async () => fork
   })
   await page.locator('.rail-btn[aria-label="자료실"]').click()
   await page.getByRole('button', { name: '기록 합치기 미리보기' }).click()
@@ -93,11 +95,8 @@ test('백업 병합을 미리 확인하고 적용하며 갈라진 AI 대화를 �
   await page.getByRole('button', { name: '미리보기대로 기록 합치기' }).click()
   await expect(page.getByRole('status')).toContainText('기록을 합쳤어요')
   await page.locator('.rail-btn[aria-label="AI"]').click()
-  await page.getByLabel('AI 대화 선택').selectOption('other-pc')
+  await page.getByRole('button', { name: '회사 PC에서 갈라진 질문 (다른 PC)', exact: true }).click()
   await expect(page.locator('.ai-message.user')).toContainText('회사 PC에서 갈라진 질문')
   await expect(page.locator('.ai-message.model')).toContainText('보존된 답변')
-  await expect(page.getByLabel('Gemini에게 질문', { exact: true })).toBeDisabled()
-  await page.getByLabel('AI 대화 선택').selectOption('')
-  await expect(page.getByLabel('Gemini에게 질문', { exact: true })).toBeEnabled()
   assertNoErrors(errors)
 })
