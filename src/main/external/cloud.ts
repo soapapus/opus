@@ -8,6 +8,8 @@ import type { Vault } from './service'
 import type { FetchFn } from './oauth'
 
 const DRIVE = 'https://www.googleapis.com/drive/v3'
+export const DEFAULT_MODEL = 'gemini-flash-latest'
+export const isRetiredModel = (m: string): boolean => /^(models\/)?gemini-(1\.0|1\.5|pro)(-|$)/.test(m)
 interface Pending { path: string; name: string; folderId: string; account?: string; sequence: number }
 interface Config {
   folder?: DriveFile
@@ -36,6 +38,16 @@ export interface CloudDeps {
   fetch?: FetchFn
 }
 
+/** Gemini 오류를 사람이 고칠 수 있는 말로 바꾼다. 응답 본문(키가 섞일 수 있음)은 보여 주지 않는다. */
+export function geminiError(status: number, model: string): string {
+  const why =
+    status === 404 ? `모델 '${model}'을(를) 찾을 수 없어요. 설정에서 모델을 ${DEFAULT_MODEL}(으)로 바꿔 주세요`
+    : status === 400 || status === 401 || status === 403 ? 'API 키가 맞지 않거나 이 키로 Gemini API를 쓸 수 없어요. 설정에서 키를 다시 확인해 주세요'
+    : status === 429 ? '사용 한도를 넘었어요. 잠시 뒤 다시 보내 주세요'
+    : 'Gemini 서버가 답하지 않았어요. 잠시 뒤 다시 보내 주세요'
+  return `Gemini 요청 실패 (${status}). ${why}. 질문은 저장됐어요`
+}
+
 export class CloudService {
   private error?: string
   private mergeError?: string
@@ -60,11 +72,14 @@ export class CloudService {
   }
   private config(): Config {
     const existed = existsSync(this.configFile)
-    const c = this.read<Config>(this.configFile, { autoBackup: false, pending: [], model: 'gemini-flash-latest', deviceId: randomUUID(), sequence: 0 })
+    const c = this.read<Config>(this.configFile, { autoBackup: false, pending: [], model: DEFAULT_MODEL, deviceId: randomUUID(), sequence: 0 })
     const migrate = !c.deviceId
     if (migrate) c.deviceId = randomUUID()
     c.sequence ??= 0
-    if (!existed || migrate) this.write(this.configFile, c)
+    // Google이 종료한 옛 모델(1.0·1.5·gemini-pro)은 항상 404라 현재 기본 모델로 바꾼다.
+    const retired = isRetiredModel(c.model)
+    if (retired) c.model = DEFAULT_MODEL
+    if (!existed || migrate || retired) this.write(this.configFile, c)
     return c
   }
   state(): CloudState {
@@ -279,7 +294,7 @@ export class CloudService {
       writeFileSync(`${this.keyFile}.tmp`, this.d.vault.encrypt(key.trim()))
       renameSync(`${this.keyFile}.tmp`, this.keyFile)
     }
-    const c = this.config(); c.model = model; this.write(this.configFile, c)
+    const c = this.config(); c.model = isRetiredModel(model) ? DEFAULT_MODEL : model; this.write(this.configFile, c)
     return this.state()
   }
   messages(): AiMessage[] { return this.read<AiMessage[]>(this.chatFile, []) }
@@ -311,7 +326,7 @@ export class CloudService {
         headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
         body: JSON.stringify({ contents })
       })
-      if (!res.ok) throw new Error(`Gemini 요청 실패 (${res.status}). API 키·모델·사용 한도를 확인해 주세요. 질문은 저장됐어요`)
+      if (!res.ok) throw new Error(geminiError(res.status, this.config().model))
       const data = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
       const answer = data.candidates?.[0]?.content?.parts?.map(p => p.text ?? '').join('').trim()
       if (!answer) throw new Error('답변을 받지 못했어요. 질문은 저장됐어요')

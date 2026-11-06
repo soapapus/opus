@@ -1,3 +1,4 @@
+import { APP_CSP } from '../shared/csp'
 import { app, BrowserWindow, dialog, globalShortcut, ipcMain, net, safeStorage, screen, shell, session } from 'electron'
 import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { holidaysForYear, parseHolidayIcs, type Holiday } from '../shared/holidays'
@@ -553,9 +554,7 @@ if (!gotLock && !process.env['LD_DATA_DIR']) {
         cb({
           responseHeaders: {
             ...details.responseHeaders,
-            'Content-Security-Policy': [
-              "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; script-src 'self'"
-            ]
+            'Content-Security-Policy': [APP_CSP]
           }
         })
       })
