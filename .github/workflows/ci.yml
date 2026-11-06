@@ -53,6 +53,8 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npx electron-vite build
+      - name: 실제 Electron 파일·프로젝트·브라우저 검증
+        run: npm run test:workspace-desktop
       # electron-builder 가 내려받는 도구(electron, icons, nsis)를 저장해 두고 재사용한다
       - uses: actions/cache@v4
         with:

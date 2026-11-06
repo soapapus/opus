@@ -7,6 +7,12 @@ async function settings(page: import('@playwright/test').Page) {
   await expect(page.getByRole('button', { name: 'Google 설정 저장' })).toBeVisible()
 }
 
+async function openBackup(page: import('@playwright/test').Page) {
+  await settings(page)
+  await page.getByText('Drive 백업 목록 · 기록 병합', { exact: true }).click()
+  await expect(page.locator('.drive-backup-panel')).toBeVisible()
+}
+
 test('한 설정에서 Google 권한 선택·Drive 백업·Gemini 키를 관리한다', async ({ page }) => {
   const errors = await openApp(page); await settings(page)
   await expect(page.getByRole('switch', { name: 'Google 캘린더 쓰기 권한' })).toHaveAttribute('aria-checked', 'false')
@@ -29,7 +35,7 @@ test('한 설정에서 Google 권한 선택·Drive 백업·Gemini 키를 관리�
   await expect(page.getByRole('switch', { name: '다른 PC 백업 자동 병합', exact: true })).toHaveAttribute('aria-checked', 'true')
   await page.getByRole('button', { name: '지금 Drive 백업' }).click()
   await expect(page.getByRole('status').filter({ hasText: 'Drive 백업을 완료했어요' })).toBeVisible()
-  await page.locator('.rail-btn[aria-label="자료실"]').click()
+  await openBackup(page)
   await expect(page.getByText('연결 폴더: Opus 미리보기', { exact: true })).toBeVisible()
   await page.locator('.rail-btn[aria-label="AI"]').click()
   await page.getByLabel('Gemini에게 질문', { exact: true }).fill('이번 주 목표를 정리해 줘')
@@ -52,12 +58,12 @@ for (const width of [1024, 1280, 1920]) {
     expect(await contrastOf(page, '.cloud-settings .btn-accent')).toBeGreaterThan(4.5)
     for (const name of ['자료실', 'AI']) {
       await page.locator(`.rail-btn[aria-label="${name}"]`).click()
-      await expect(page.locator('.cloud-view')).toBeVisible()
+      await expect(page.getByRole('region', { name: name === '자료실' ? 'PC 자료실' : 'AI', exact: true })).toBeVisible()
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     }
     await expect(page.getByRole('button', { name: 'Gemini에 전송' })).toBeDisabled()
     await page.locator('.rail-btn[aria-label="자료실"]').click()
-    await expect(page.getByText('설정에서 Google Drive를 연결하고 폴더를 선택해 주세요.', { exact: true })).toBeVisible()
+    await expect(page.getByText('등록한 폴더가 없어요. 계정이나 API 키 없이 PC 폴더를 선택하면 돼요.', { exact: true })).toBeVisible()
     assertNoErrors(errors)
   })
 }
@@ -68,7 +74,7 @@ test('자료실의 긴 파일 이름·검색 결과 없음·오류를 표시한�
     await window.api.cloudSaveKeys('id', 'secret'); await window.api.driveConnect(); await window.api.driveSelectFolder('folder')
     window.api.driveFiles = async () => [{ id: 'file', name: '아주긴자료이름'.repeat(80) + '.zip', mimeType: 'application/zip' }]
   })
-  await page.locator('.rail-btn[aria-label="자료실"]').click()
+  await openBackup(page)
   await expect(page.locator('.cloud-files li')).toHaveCount(1)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   await page.getByLabel('자료 검색').fill('없는자료')
@@ -88,12 +94,12 @@ test('백업 병합을 미리 확인하고 적용하며 갈라진 AI 대화를 �
     window.api.aiChats = async () => [{ id: fork.id, title: fork.title, updated: '2026-11-06T10:01:00+09:00', count: 2 }]
     window.api.aiChat = async () => fork
   })
-  await page.locator('.rail-btn[aria-label="자료실"]').click()
+  await openBackup(page)
   await page.getByRole('button', { name: '기록 합치기 미리보기' }).click()
   const preview = page.getByRole('region', { name: '백업 병합 미리보기' })
   await expect(preview).toContainText('새 기록 2개 · 이어서 갱신 1개 · 충돌 사본 1개')
   await page.getByRole('button', { name: '미리보기대로 기록 합치기' }).click()
-  await expect(page.getByRole('status')).toContainText('기록을 합쳤어요')
+  await expect(page.locator('.drive-backup-panel').getByRole('status')).toContainText('기록을 합쳤어요')
   await page.locator('.rail-btn[aria-label="AI"]').click()
   await page.getByRole('button', { name: '회사 PC에서 갈라진 질문 (다른 PC)', exact: true }).click()
   await expect(page.locator('.ai-message.user')).toContainText('회사 PC에서 갈라진 질문')

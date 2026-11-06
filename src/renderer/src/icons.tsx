@@ -143,3 +143,6 @@ export const IconBolt = (p: P) => (
     <path d="M13 3 5 14h6l-1 7 8-11h-6l1-7Z" />
   </Svg>
 )
+
+export const IconBoard = (p: P) => <Svg {...p}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16M15 4v16M5.5 8h1M11.5 8h1M17.5 8h1" /></Svg>
+export const IconGlobe = (p: P) => <Svg {...p}><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c5 5 5 13 0 18-5-5-5-13 0-18Z" /></Svg>

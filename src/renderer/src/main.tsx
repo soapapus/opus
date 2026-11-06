@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './fonts'
 import './styles.css'
 import './opus.css'
+import './features.css'
 import { App } from './App'
 import { FloatingScratchpad } from './components/FloatingScratchpad'
 
