@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { AppInfo, ConnectionsState, TagCount } from '../../../shared/types'
-import { IconCalendar, IconCheck, IconChevronDown, IconGear, IconNotes, IconPlus } from '../icons'
+import { IconBoard, IconFolder, IconGlobe, IconCalendar, IconCheck, IconChevronDown, IconGear, IconNotes, IconPlus } from '../icons'
 import { initialOf, menuName, menuShown, profileName, type Prefs } from '../prefs'
 import type { MemoFilter } from './MemoView'
 
-export type View = 'calendar' | 'memo' | 'library' | 'ai' | 'settings'
+export type View = 'calendar' | 'memo' | 'library' | 'projects' | 'browser' | 'ai' | 'settings'
 
 export const SETTING_SECTIONS = [
   { id: 'workspace', label: '워크스페이스' },
@@ -45,7 +45,9 @@ export function Rail({ view, prefs, onView, onScratch }: { view: View; prefs: Pr
       </div>
       {menuShown(prefs, 'calendar') && item('calendar', <IconCalendar size={20} />, menuName(prefs, 'calendar'))}
       {menuShown(prefs, 'memo') && item('memo', <IconNotes size={20} />, menuName(prefs, 'memo'))}
-      {menuShown(prefs, 'library') && item('library', <IconNotes size={20} />, menuName(prefs, 'library'))}
+      {menuShown(prefs, 'projects') && item('projects', <IconBoard size={20} />, menuName(prefs, 'projects'))}
+      {menuShown(prefs, 'library') && item('library', <IconFolder size={20} />, menuName(prefs, 'library'))}
+      {menuShown(prefs, 'browser') && item('browser', <IconGlobe size={20} />, menuName(prefs, 'browser'))}
       {menuShown(prefs, 'ai') && item('ai', <IconQuick />, menuName(prefs, 'ai'))}
       {menuShown(prefs, 'scratch') && (
         <button className="rail-btn" aria-label={menuName(prefs, 'scratch')} title={`${menuName(prefs, 'scratch')} (Ctrl+Shift+Space)`} onClick={onScratch}>
@@ -125,7 +127,7 @@ export function Workspace({
             <span className="cnt">{docCount}</span>
           </button>
         )}
-        {(['library', 'ai'] as const).filter(v => menuShown(prefs, v)).map(v => <button key={v} className={`ws-item ${view === v ? 'on' : ''}`} onClick={() => onView(v)}>{menuName(prefs, v)}</button>)}
+        {(['projects', 'library', 'browser', 'ai'] as const).filter(v => menuShown(prefs, v)).map(v => <button key={v} className={`ws-item ${view === v ? 'on' : ''}`} onClick={() => onView(v)}>{menuName(prefs, v)}</button>)}
         {menuShown(prefs, 'scratch') && (
           <button className="ws-item" onClick={onScratch}>
             {menuName(prefs, 'scratch')}

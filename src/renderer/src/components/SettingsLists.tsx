@@ -2,7 +2,7 @@
 // 큰 카드 대신 한 줄에 이름·상태·버튼·스위치를 두는 간결한 목록으로 만든다.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { AppInfo } from '../../../shared/types'
-import { IconBolt, IconCalendar, IconGear, IconNotes } from '../icons'
+import { IconBoard, IconGlobe, IconFolder, IconBolt, IconCalendar, IconGear, IconNotes } from '../icons'
 import { HIDEABLE_MENUS, MENU_DEFAULT, type MenuKey, type Prefs, type Profile } from '../prefs'
 import { Avatar } from './Shell'
 
@@ -262,7 +262,9 @@ export function WorkspaceList({ info, onChanged, onSwitch }: { info: AppInfo | n
 const MENU_ICON: Record<MenuKey, ReactNode> = {
   calendar: <IconCalendar size={16} />,
   memo: <IconNotes size={16} />,
-  library: <IconNotes size={16} />,
+  library: <IconFolder size={16} />,
+  projects: <IconBoard size={16} />,
+  browser: <IconGlobe size={16} />,
   ai: <IconBolt size={16} />,
   scratch: <IconBolt size={16} />,
   settings: <IconGear size={16} />

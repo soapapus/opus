@@ -9,7 +9,10 @@ import { ConfirmDialog } from './components/Dialogs'
 import { DayPanel } from './components/DayPanel'
 import { MemoEditor } from './components/MemoEditor'
 import { applyMemoFilter, MemoView, type MemoFilter } from './components/MemoView'
-import { AiView, LibraryView } from './components/CloudViews'
+import { AiView } from './components/CloudViews'
+import { LocalLibraryView } from './components/features/LocalLibraryView'
+import { ProjectBoardView } from './components/features/ProjectBoardView'
+import { BrowserDeskView } from './components/features/BrowserDeskView'
 import { SettingsView } from './components/SettingsView'
 import { ProfileDialog } from './components/SettingsLists'
 import { googleSignal, Rail, TopBar, Workspace, type View } from './components/Shell'
@@ -674,7 +677,9 @@ export function App() {
           />
         )}
 
-        {view === 'library' && <LibraryView onSettings={() => void openSettings('google')} />}
+        {view === 'library' && <LocalLibraryView />}
+        {view === 'projects' && <ProjectBoardView />}
+        {view === 'browser' && <BrowserDeskView />}
         {view === 'ai' && <AiView onSettings={() => void openSettings('google')} />}
         {view === 'settings' && (
           <SettingsView

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { AppInfo, HolidayStatus } from '../../../shared/types'
 import { ACCENTS, DEFAULT_PREFS, inkOn, isHex, type CalView, type Prefs } from '../prefs'
 import { MenuList, WorkspaceList } from './SettingsLists'
+import { LibraryView } from './CloudViews'
 import { CalendarConnections } from './CalendarConnections'
 import { SETTING_SECTIONS } from './Shell'
 import { isCloudSyncedPath } from '../../../shared/sync'
@@ -109,6 +110,7 @@ export function SettingsView({
   onHolidayRefresh: () => void
 }) {
   const scroller = useRef<HTMLDivElement>(null)
+  const [driveBackupOpen, setDriveBackupOpen] = useState(false)
 
   // 왼쪽 목록에서 고른 항목으로 이동
   useEffect(() => {
@@ -307,6 +309,7 @@ export function SettingsView({
         }
       >
         <CalendarConnections onChanged={onConnChanged} />
+        <details className="drive-backup-details" onToggle={e => setDriveBackupOpen(e.currentTarget.open)}><summary>Drive 백업 목록 · 기록 병합</summary>{driveBackupOpen && <div className="drive-backup-panel"><LibraryView onSettings={() => document.getElementById('set-google')?.scrollIntoView()} /></div>}</details>
       </Section>
 
       <Section id="memo" title="메모 보관 · 백업" desc="메모는 아래 폴더에 글 파일(.md)로 저장돼요. 이 폴더만 옮기면 다른 컴퓨터에서도 그대로 쓸 수 있어요.">

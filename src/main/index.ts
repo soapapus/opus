@@ -10,6 +10,10 @@ import type { CreateNoteInput, NoteKind, Provider, SaveNoteInput, WindowAction }
 import { ExternalService, type Vault } from './external/service'
 import { CloudService } from './external/cloud'
 import { createBackup } from './backup/backup'
+import { LocalFiles } from './features/localFiles'
+import { Projects } from './features/projects'
+import { BrowserDesk, openChrome } from './features/browser'
+import type { BrowserBounds, FileRef, ProjectBoard } from '../shared/workspaceFeatures'
 
 // 설정 폴더는 %APPDATA%\\Opus. 예전 라임 다이어리를 쓰던 PC면 처음 한 번 설정·연결 키를 복사해 온다.
 // (예전 폴더를 그대로 쓰면 라임 다이어리가 켜져 있을 때 Opus가 '이미 실행 중'으로 막힌다)
@@ -98,6 +102,20 @@ async function flushWindows(): Promise<void> {
 }
 
 const isDev = !app.isPackaged && !!process.env['ELECTRON_RENDERER_URL']
+const fileManagers = new Map<string, LocalFiles>()
+const browsers = new Map<string, BrowserDesk>()
+function localFiles(): LocalFiles {
+  const key = state.localDir
+  if (!fileManagers.has(key)) fileManagers.set(key, new LocalFiles(join(key, 'local-folders.json'), path => shell.trashItem(path)))
+  return fileManagers.get(key)!
+}
+function projects(): Projects { return new Projects(state.dataDir) }
+function browserDesk(): BrowserDesk {
+  if (!win || win.isDestroyed()) throw new Error('Opus 창이 열려 있지 않아요')
+  const key = state.localDir
+  if (!browsers.has(key)) browsers.set(key, new BrowserDesk(win, key))
+  return browsers.get(key)!
+}
 
 function notifyInfoChanged(): void {
   win?.webContents.send('app:info-changed')
@@ -143,8 +161,45 @@ async function refreshHolidays(force: boolean): Promise<{ source: 'google' | 'bu
 
 function registerIpc(): void {
   const h = (name: string, fn: (...args: any[]) => unknown): void => {
-    ipcMain.handle(`ld:${name}`, (_e, ...args) => fn(...args))
+    ipcMain.handle(`ld:${name}`, (event, ...args) => {
+      if ((event.sender !== win?.webContents && event.sender !== scratchWin?.webContents) || event.senderFrame !== event.sender.mainFrame) throw new Error('Opus 화면에서만 실행할 수 있어요')
+      return fn(...args)
+    })
   }
+  h('localRoots', () => localFiles().roots())
+  h('localChooseRoot', async () => {
+    const files = localFiles()
+    const result = await dialog.showOpenDialog(win!, { title: '자료실에 등록할 PC 폴더', properties: ['openDirectory'] })
+    return result.canceled || !result.filePaths[0] ? null : files.register(result.filePaths[0])
+  })
+  h('localRemoveRoot', (id: string) => localFiles().remove(id))
+  h('localRenameRoot', (id: string, name: string) => localFiles().renameRoot(id, name))
+  h('localList', (ref: FileRef) => localFiles().list(ref))
+  h('localResolveAddress', (address: string) => localFiles().address(address))
+  h('localOpen', async (ref: FileRef) => { const error = await shell.openPath(await localFiles().openPath(ref)); if (error) throw new Error(error) })
+  h('localReveal', async (ref: FileRef) => shell.showItemInFolder(await localFiles().openPath(ref)))
+  h('localCreateFolder', (ref: FileRef, name: string) => localFiles().createFolder(ref, name))
+  h('localRename', (ref: FileRef, name: string) => localFiles().rename(ref, name))
+  h('localTransfer', (refs: FileRef[], target: FileRef, move: boolean) => localFiles().transfer(refs, target, !!move))
+  h('localTrash', (refs: FileRef[]) => localFiles().trash(refs))
+  h('projectGet', () => projects().get())
+  h('projectSave', (board: ProjectBoard) => projects().save(board))
+  h('projectAttach', async () => {
+    const store = projects()
+    const result = await dialog.showOpenDialog(win!, { title: '프로젝트 카드에 첨부할 파일', properties: ['openFile', 'multiSelections'] })
+    return result.canceled ? [] : store.attach(result.filePaths)
+  })
+  h('projectOpenAttachment', async (id: string) => { const error = await shell.openPath(projects().attachmentPath(id)); if (error) throw new Error(error) })
+  h('browserGet', () => browserDesk().state())
+  h('browserNew', (url?: string) => browserDesk().newTab(url))
+  h('browserClose', (id: string) => browserDesk().close(id))
+  h('browserSelect', (id: string) => browserDesk().select(id))
+  h('browserNavigate', (id: string, url: string) => browserDesk().navigate(id, url))
+  h('browserCommand', (id: string, command: string) => browserDesk().command(id, command))
+  h('browserBounds', (bounds: BrowserBounds | null) => browserDesk().setBounds(bounds))
+  h('browserChrome', (url: string) => openChrome(url))
+  h('browserBookmark', (url: string, title: string) => browserDesk().bookmark(url, title))
+  h('browserRemoveBookmark', (id: string) => browserDesk().removeBookmark(id))
   h('info', () => state.info())
   h('createWorkspace', (name: string) => state.createWorkspace(name))
   h('renameWorkspace', (id: string, name: string) => state.renameWorkspace(id, name))
@@ -160,6 +215,7 @@ function registerIpc(): void {
         scratch.destroy()
         scratchWin = null
       }
+      for (const browser of browsers.values()) browser.hide()
       const info = state.switchWorkspace(id)
       ext = null
       return info

@@ -1,6 +1,7 @@
 // 브라우저에서 화면만 미리 볼 때 쓰는 가짜 api (Electron 안에서는 쓰지 않는다).
 import { builtinHolidays } from '../../shared/holidays'
 import { changedSince, conflictTitle } from '../../shared/sync'
+import { mockWorkspaceFeatures } from './mockWorkspaceFeatures'
 import type { AiMessage, CloudState, Api, ConnectionsState, ExternalEvent, Note, NoteSummary, WorkspaceInfo } from '../../shared/types'
 
 export function installMockApi(): void {
@@ -110,6 +111,7 @@ export function installMockApi(): void {
   }
   const previewFolder = { id: 'preview-opus', name: 'Opus 미리보기', mimeType: 'application/vnd.google-apps.folder' }
   const api: Api = {
+    ...mockWorkspaceFeatures(() => workspaceId),
     cloudState: async () => ({ ...cloudState() }),
     cloudSaveKeys: async () => { cloudState().driveConfigured = true; conn.google.configured = true; return { ...cloudState() } },
     driveConnect: async (write) => { cloudState().driveConnected = true; conn.google.connected = true; conn.google.writeEnabled = !!write; return { ...cloudState() } },

@@ -1,4 +1,5 @@
 // 화면(renderer)과 메인(main)이 함께 쓰는 타입
+import type { WorkspaceFeaturesApi } from './workspaceFeatures'
 
 /**
  * 기록의 종류
@@ -97,7 +98,7 @@ export type SavedNote = Note & { conflictCopy?: NoteSummary }
 export type WindowAction = 'minimize' | 'maximize' | 'close'
 
 /** preload가 화면에 열어 주는 기능 목록 (window.api) */
-export interface Api {
+export interface Api extends WorkspaceFeaturesApi {
   cloudState(): Promise<CloudState>
   cloudSaveKeys(clientId: string, clientSecret: string): Promise<CloudState>
   driveConnect(calendarWrite?: boolean): Promise<CloudState>
