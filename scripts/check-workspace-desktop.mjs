@@ -2,7 +2,7 @@
 import { _electron as electron, expect } from '@playwright/test'
 import { createServer } from 'node:http'
 import { createHash } from 'node:crypto'
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -13,7 +13,7 @@ writeFileSync(join(userData, 'settings.json'), JSON.stringify({ prefs: { holiday
 writeFileSync(join(left, '기록.txt'), '실제 파일 원문')
 const key = createHash('sha1').update(resolve(data).toLowerCase()).digest('hex').slice(0, 12)
 const local = join(userData, 'local', key); mkdirSync(local, { recursive: true })
-writeFileSync(join(local, 'local-folders.json'), JSON.stringify([{ id: 'left', name: '원본', path: left }, { id: 'right', name: '대상', path: right }]))
+writeFileSync(join(local, 'local-folders.json'), JSON.stringify([{ id: 'left', name: '원본', path: realpathSync(left) }, { id: 'right', name: '대상', path: realpathSync(right) }]))
 const server = createServer((req, res) => { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(`<html><head><title>격리 검사 ${req.url}</title></head><body><h1>외부 웹페이지 검사</h1><a href="/second">다음 페이지</a></body></html>`) })
 await new Promise(ok => server.listen(0, '127.0.0.1', ok))
 const url = `http://127.0.0.1:${server.address().port}/first`
