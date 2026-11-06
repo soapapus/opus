@@ -98,6 +98,10 @@ function ChatRow({ c, on, busy, onOpen, onRename }: { c: AiChatSummary; on: bool
 
 /** 다른 메뉴에 다녀와도 보던 대화를 다시 연다 (앱이 켜져 있는 동안만) */
 let lastChatId: string | null = null
+/** 대화별 마지막 실패 이유. 다른 메뉴에 다녀와도 답이 없는 질문 아래에 계속 보여 준다 */
+const chatErrors = new Map<string, string>()
+const clean = (e: unknown, fallback: string): string =>
+  (e instanceof Error ? e.message : String(e || fallback)).replace(/^Error invoking remote method '[^']+': (Error: )?/, '') || fallback
 
 export function AiView({ onSettings }: { onSettings: () => void }) {
   const [list, setList] = useState<AiChatSummary[]>([])
@@ -109,6 +113,7 @@ export function AiView({ onSettings }: { onSettings: () => void }) {
   const [pending, setPending] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [keyError, setKeyError] = useState('')
   const scroll = useRef<HTMLDivElement>(null)
   const input = useRef<HTMLTextAreaElement>(null)
   const current = useRef<string | null>(null)
@@ -126,7 +131,8 @@ export function AiView({ onSettings }: { onSettings: () => void }) {
   useEffect(() => window.api.onFilesChanged(() => { if (!busy) void refresh().catch(() => undefined) }), [busy, refresh])
   useEffect(() => {
     if (!state?.aiConfigured) return
-    window.api.aiModels().then(setModels).catch(() => setModels([]))
+    // 모델 목록을 받아 보면 키가 맞는지도 알 수 있다
+    window.api.aiModels().then((m) => { setModels(m); setKeyError('') }).catch((e) => { setModels([]); setKeyError(clean(e, '키를 확인하지 못했어요')) })
   }, [state?.aiConfigured])
   useEffect(() => { scroll.current?.scrollTo({ top: scroll.current.scrollHeight }) }, [chat?.messages.length, pending, chat?.id])
   useEffect(() => {
@@ -145,19 +151,26 @@ export function AiView({ onSettings }: { onSettings: () => void }) {
   }
   const run = async (work: () => Promise<AiChat>, question = '') => {
     setBusy(true); setError(''); setPending(question)
+    const before = current.current
+    let failed = ''
     try {
       const c = await work()
+      chatErrors.delete(c.id)
       setChat(c)
     } catch (e) {
-      setError((e instanceof Error ? e.message : '답변을 받지 못했어요').replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
+      failed = clean(e, '답변을 받지 못했어요')
+      if (before) chatErrors.set(before, failed)
+      setError(failed)
     } finally {
       setPending(''); setBusy(false)
       try {
         const [l, s] = await Promise.all([window.api.aiChats(), window.api.cloudState()])
         setList(l); setState(s)
         // 실패해도 질문은 저장되므로, 새 대화였다면 저장된 대화를 연다
-        if (!current.current && l[0] && question) setChat(await window.api.aiChat(l[0].id))
-        else if (current.current) setChat(await window.api.aiChat(current.current))
+        if (!current.current && l[0] && question) {
+          if (failed) chatErrors.set(l[0].id, failed)
+          setChat(await window.api.aiChat(l[0].id))
+        } else if (current.current) setChat(await window.api.aiChat(current.current))
       } catch { /* 표시된 대화 유지 */ }
     }
   }
@@ -174,6 +187,9 @@ export function AiView({ onSettings }: { onSettings: () => void }) {
   const shown = list.filter((c) => !query.trim() || c.title.toLowerCase().includes(query.trim().toLowerCase()))
   const groups = groupChats(shown)
   const lastModel = chat ? chat.messages.map((m) => m.role).lastIndexOf('model') : -1
+  // 마지막이 내 질문이면 답을 못 받은 것: 이유와 다시 보내기를 계속 보여 준다
+  const unanswered = !!chat && !busy && chat.messages.at(-1)?.role === 'user'
+  const reason = (chat && chatErrors.get(chat.id)) || error
   const modelOptions = [...new Set([state?.aiModel ?? '', ...models].filter(Boolean))]
 
   return (
@@ -214,6 +230,12 @@ export function AiView({ onSettings }: { onSettings: () => void }) {
 
         <div className="ai-scroll" ref={scroll}>
           <div className="ai-thread" aria-live="polite">
+            {state?.aiConfigured && keyError && (
+              <div className="ai-keycheck" role="alert">
+                <span>Gemini 키 확인 실패: {keyError}</span>
+                <button className="btn sm" onClick={onSettings}>설정 열기</button>
+              </div>
+            )}
             {!chat && !pending && (
               <div className="ai-empty">
                 <h2>무엇을 도와드릴까요?</h2>
@@ -240,7 +262,13 @@ export function AiView({ onSettings }: { onSettings: () => void }) {
             )}
             {pending && <article className="ai-message user"><div className="bubble">{pending}</div></article>}
             {busy && <p className="ai-wait" role="status">Gemini 답변을 기다리고 있어요…</p>}
-            {error && <p className="ai-error" role="alert">{error}</p>}
+            {unanswered && (
+              <div className="ai-unanswered">
+                <p className="ai-error" role="alert">{reason || '이 질문에는 아직 답이 없어요. 다시 보내 보세요.'}</p>
+                <button type="button" className="btn sm" disabled={!state?.aiConfigured} onClick={() => void run(() => window.api.aiRegenerate(chat!.id))}>다시 보내기</button>
+              </div>
+            )}
+            {!unanswered && error && <p className="ai-error" role="alert">{error}</p>}
           </div>
         </div>
 
