@@ -87,6 +87,22 @@ describe('백업 기반 병합', () => {
     expect(merge(a, b.snapshot()).aiArchives).toBe(0)
     expect(readFileSync(join(a.data, 'personal/ai/conversation.json'), 'utf8')).toContain('집 질문')
   })
+  it('여러 대화: 이어지면 더 긴 쪽, 갈라지면 (다른 PC) 새 대화로 보존하고 반복해도 같다', () => {
+    const a = pc(), b = pc()
+    const put = (p: ReturnType<typeof pc>, id: string, texts: string[]) => {
+      mkdirSync(join(p.data, 'personal/ai/chats'), { recursive: true })
+      writeFileSync(join(p.data, 'personal/ai/chats', `${id}.json`), JSON.stringify({ title: '공통 대화', created: '2026-11-06T10:00:00+09:00', messages: texts.map(text => ({ role: 'user', text, created: '2026-11-06T10:00:00+09:00' })) }))
+    }
+    put(a, 'c1', ['공통']); put(b, 'c1', ['공통', '회사 질문']); put(b, 'c2', ['회사에서만'])
+    const r = merge(a, b.snapshot())
+    expect(r.aiMessages).toBe(2)
+    expect(readFileSync(join(a.data, 'personal/ai/chats/c1.json'), 'utf8')).toContain('회사 질문')
+    expect(existsSync(join(a.data, 'personal/ai/chats/c2.json'))).toBe(true)
+    put(a, 'c1', ['공통', '회사 질문', '집 질문']); put(b, 'c1', ['공통', '회사 질문', '회사 둘째'])
+    expect(merge(a, b.snapshot()).aiArchives).toBe(1)
+    expect(merge(a, b.snapshot()).aiArchives).toBe(0)
+    expect(readFileSync(join(a.data, 'personal/ai/chats/c1.json'), 'utf8')).toContain('집 질문')
+  })
   it('다른 워크스페이스·조작된 버전·폴더 탈출 파일을 받아들이지 않는다', () => {
     const a = pc(), b = pc(); write(b, '원격'); const files = unzipSync(b.snapshot())
     files['../../outside.md'] = new TextEncoder().encode('금지')

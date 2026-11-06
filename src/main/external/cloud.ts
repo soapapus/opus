@@ -1,8 +1,9 @@
 // Drive에는 새 백업만 추가한다. 기존 파일의 수정·삭제 API는 사용하지 않는다.
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { createHash, randomUUID } from 'node:crypto'
 import { dirname, join } from 'node:path'
-import type { AiMessage, CloudState, DriveFile, MergeReport } from '../../shared/types'
+import type { AiChat, AiChatSummary, AiMessage, CloudState, DriveFile, MergeReport } from '../../shared/types'
+import { ChatStore } from './aiChats'
 import { BackupMerger, type MergePlan } from '../backup/merge'
 import type { Vault } from './service'
 import type { FetchFn } from './oauth'
@@ -24,6 +25,7 @@ interface Config {
   autoMerge?: boolean
   lastMerge?: string
   mergedDevices?: Record<string, number>
+  usage?: { month: string; tokens: number }
 }
 export interface CloudDeps {
   localDir: string
@@ -88,7 +90,8 @@ export class CloudService {
       driveConfigured: this.d.configured(), driveConnected: this.d.connected(), driveAccount: this.d.account(),
       folder: c.folder, autoBackup: c.autoBackup, pendingBackups: c.pending.length,
       lastBackup: c.lastBackup, error: this.error ?? this.mergeError, aiConfigured: existsSync(this.keyFile), aiModel: c.model,
-      autoMerge: !!c.autoMerge, lastMerge: c.lastMerge
+      autoMerge: !!c.autoMerge, lastMerge: c.lastMerge,
+      aiTokensThisMonth: c.usage?.month === new Date().toISOString().slice(0, 7) ? c.usage.tokens : 0
     }
   }
   private async request(path: string, init: RequestInit = {}): Promise<Response> {
@@ -297,47 +300,94 @@ export class CloudService {
     const c = this.config(); c.model = isRetiredModel(model) ? DEFAULT_MODEL : model; this.write(this.configFile, c)
     return this.state()
   }
+  private get chats(): ChatStore { return new ChatStore(join(this.d.dataDir, 'personal', 'ai')) }
+  /** 예전 한 줄 대화 (이전 버전 호환·테스트용) */
   messages(): AiMessage[] { return this.read<AiMessage[]>(this.chatFile, []) }
-  archives(): { id: string; messages: AiMessage[] }[] {
-    const dir = join(this.d.dataDir, 'personal/ai/imports')
-    if (!existsSync(dir)) return []
-    return readdirSync(dir).filter(name => /^[a-f0-9]{64}\.json$/.test(name)).map(name => ({ id: name.slice(0, -5), messages: this.read<AiMessage[]>(join(dir, name), []) }))
-  }
-  async send(text: string): Promise<AiMessage[]> {
+  chatList(): AiChatSummary[] { return this.chats.list() }
+  chat(id: string): AiChat { return this.chats.get(id) }
+  renameChat(id: string, title: string): AiChat {
     if (this.chatting) throw new Error('답변을 기다려 주세요')
-    if (typeof text !== 'string' || !text.trim() || text.length > 30_000) throw new Error('질문은 1~30,000자로 입력해 주세요')
+    return this.chats.rename(id, title)
+  }
+
+  private key(): string {
     if (!existsSync(this.keyFile)) throw new Error('설정에서 Gemini API 키를 입력해 주세요')
+    return this.d.vault.decrypt(readFileSync(this.keyFile))
+  }
+
+  /** 이 키로 대화(generateContent)에 쓸 수 있는 Gemini 모델 이름 */
+  async models(): Promise<string[]> {
+    const res = await (this.d.fetch ?? fetch)('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', {
+      signal: AbortSignal.timeout(30_000), headers: { 'x-goog-api-key': this.key() }
+    })
+    if (!res.ok) throw new Error(geminiError(res.status, this.config().model).replace(' 질문은 저장됐어요', ''))
+    const data = await res.json() as { models?: { name?: string; supportedGenerationMethods?: string[] }[] }
+    const names = (data.models ?? [])
+      .filter(m => m.name?.startsWith('models/gemini') && m.supportedGenerationMethods?.includes('generateContent'))
+      .map(m => m.name!.slice('models/'.length))
+      .filter(n => /^[a-zA-Z0-9._-]{1,100}$/.test(n) && !isRetiredModel(n))
+    return [...new Set([DEFAULT_MODEL, ...names])]
+  }
+
+  async send(chatId: string | null, text: string): Promise<AiChat> {
+    if (typeof text !== 'string' || !text.trim() || text.length > 30_000) throw new Error('질문은 1~30,000자로 입력해 주세요')
+    return this.ask(chatId, text.trim())
+  }
+
+  async regenerate(chatId: string): Promise<AiChat> {
+    return this.ask(chatId, null)
+  }
+
+  private async ask(chatId: string | null, text: string | null): Promise<AiChat> {
+    if (this.chatting) throw new Error('답변을 기다려 주세요')
+    const key = this.key()
     this.chatting = true
     try {
-      const history = this.messages()
-      history.push({ role: 'user', text: text.trim(), created: new Date().toISOString() })
-      this.write(this.chatFile, history) // 요청 실패도 사용자가 쓴 글은 보존한다.
-      const base = JSON.stringify(history)
+      const store = this.chats
+      const chat = chatId ? store.get(chatId) : store.create(text ?? '')
+      if (text !== null) {
+        chat.messages.push({ role: 'user', text, created: new Date().toISOString() })
+        store.save(chat) // 요청 실패도 사용자가 쓴 글은 보존한다.
+      } else if (!chat.messages.some(m => m.role === 'user')) throw new Error('다시 받을 질문이 없어요')
+      const base = JSON.stringify(chat.messages)
+      // 다시 생성: 마지막 답(들)은 빼고 마지막 질문까지 보낸다. 예전 답은 대화에 그대로 남는다.
+      let upto = chat.messages.length
+      if (text === null) while (upto > 0 && chat.messages[upto - 1].role === 'model') upto--
       const contents: { role: 'user' | 'model'; parts: { text: string }[] }[] = []
-      for (const m of history.slice(-30)) {
+      for (const m of chat.messages.slice(0, upto).slice(-30)) {
         if (!contents.length && m.role === 'model') continue
         const last = contents.at(-1)
         if (last?.role === m.role) last.parts.push({ text: m.text })
         else contents.push({ role: m.role, parts: [{ text: m.text }] })
       }
-      const key = this.d.vault.decrypt(readFileSync(this.keyFile))
-      const res = await (this.d.fetch ?? fetch)(`https://generativelanguage.googleapis.com/v1beta/models/${this.config().model}:generateContent`, {
+      const model = this.config().model
+      const res = await (this.d.fetch ?? fetch)(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
         method: 'POST', signal: AbortSignal.timeout(90_000),
         headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
         body: JSON.stringify({ contents })
       })
-      if (!res.ok) throw new Error(geminiError(res.status, this.config().model))
-      const data = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
+      if (!res.ok) throw new Error(geminiError(res.status, model))
+      const data = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[]; usageMetadata?: { totalTokenCount?: number } }
       const answer = data.candidates?.[0]?.content?.parts?.map(p => p.text ?? '').join('').trim()
       if (!answer) throw new Error('답변을 받지 못했어요. 질문은 저장됐어요')
-      history.push({ role: 'model', text: answer, created: new Date().toISOString() })
-      if (JSON.stringify(this.messages()) !== base) {
-        const branch = JSON.stringify(history)
-        this.write(join(this.d.dataDir, 'personal/ai/imports', `${createHash('sha256').update(branch).digest('hex')}.json`), history)
-        throw new Error('대화가 다른 곳에서 바뀌어 답변을 별도 대화로 보존했어요. AI 대화 선택에서 확인해 주세요')
+      this.addUsage(data.usageMetadata?.totalTokenCount)
+      chat.messages.push({ role: 'model', text: answer, created: new Date().toISOString() })
+      let current: AiMessage[] = []
+      try { current = store.get(chat.id).messages } catch { current = [] }
+      if (JSON.stringify(current) !== base) {
+        store.fork(chat)
+        throw new Error('대화가 다른 곳에서 바뀌어 답변을 갈라진 대화로 따로 보존했어요. 대화 목록에서 확인해 주세요')
       }
-      this.write(this.chatFile, history)
-      return history
+      store.save(chat)
+      return chat
     } finally { this.chatting = false }
+  }
+
+  private addUsage(tokens: number | undefined): void {
+    if (!tokens || !Number.isFinite(tokens) || tokens < 0) return
+    const c = this.config()
+    const month = new Date().toISOString().slice(0, 7)
+    c.usage = c.usage?.month === month ? { month, tokens: c.usage.tokens + tokens } : { month, tokens }
+    this.write(this.configFile, c)
   }
 }

@@ -326,9 +326,12 @@ function registerIpc(): void {
     return true
   })
   h('aiConfigure', (key: string, model: string) => cloud().configureAi(key, model))
-  h('aiMessages', () => cloud().messages())
-  h('aiArchives', () => cloud().archives())
-  h('aiSend', (text: string) => cloud().send(text))
+  h('aiChats', () => cloud().chatList())
+  h('aiChat', (id: string) => cloud().chat(String(id)))
+  h('aiSend', (id: string | null, text: string) => cloud().send(typeof id === 'string' ? id : null, text))
+  h('aiRegenerate', (id: string) => cloud().regenerate(String(id)))
+  h('aiRename', (id: string, title: string) => cloud().renameChat(String(id), String(title)))
+  h('aiModels', () => cloud().models())
   h('externalByMonth', (m: string) => external().externalByMonth(m))
   h('saveKeys', (p: Provider, id: string, secret: string) => external().saveKeys(p, id, secret))
   h('connect', async (p: Provider, write?: boolean) => {

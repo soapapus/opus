@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path'
 import { unzipSync } from 'fflate'
 import type { AiMessage, MergeReport, Note } from '../../shared/types'
 import { NoteStore } from '../storage/noteStore'
+import { CHAT_PATH, isPrefix, parseChat } from '../external/aiChats'
 import { parseNote, serializeNote } from '../storage/frontmatter'
 import { isDateStr } from '../../shared/calendar'
 import { deriveTitle, makePreview, normalizeTags } from '../../shared/text'
@@ -72,13 +73,15 @@ export class BackupMerger {
     const files: [string, string][] = []
     for (const f of this.store.listFiles()) files.push([f.path, hash(readFileSync(f.path, 'utf8'))])
     for (const p of [CHAT, MANIFEST]) if (existsSync(join(this.root, p))) files.push([p, hash(readFileSync(join(this.root, p), 'utf8'))])
+    const chats = join(this.root, 'personal/ai/chats')
+    if (existsSync(chats)) for (const name of readdirSync(chats)) if (name.endsWith('.json')) files.push([`chats/${name}`, hash(readFileSync(join(chats, name), 'utf8'))])
     return hash(JSON.stringify(files.sort((a, b) => a[0].localeCompare(b[0]))))
   }
   plan(zip: Uint8Array): MergePlan {
     if (zip.byteLength > 100 * 1024 * 1024) throw new Error('100MB 이하의 기록 백업을 선택해 주세요')
     let total = 0
     const files = unzipSync(zip, { filter: f => {
-      const allowed = f.name === MANIFEST || f.name === CHAT || /^personal\/ai\/imports\/[a-f0-9]{64}\.json$/.test(f.name) || /^personal\/(?:notes\/\d{4}\/\d{2}|\.trash)\/[a-zA-Z0-9._-]+\.md$/.test(f.name)
+      const allowed = f.name === MANIFEST || f.name === CHAT || CHAT_PATH.test(f.name) || /^personal\/ai\/imports\/[a-f0-9]{64}\.json$/.test(f.name) || /^personal\/(?:notes\/\d{4}\/\d{2}|\.trash)\/[a-zA-Z0-9._-]+\.md$/.test(f.name)
       if (allowed) { total += f.originalSize; if (total > 100 * 1024 * 1024) throw new Error('백업의 기록 크기가 병합 한도를 넘었어요') }
       return allowed
     } })
@@ -152,6 +155,25 @@ export class BackupMerger {
       const text = JSON.stringify(readMessages(new TextDecoder().decode(bytes)))
       const dest = join(this.root, 'personal/ai/imports', `${hash(text)}.json`)
       if (!existsSync(dest) && !writes.some(w => w.path === dest)) { writes.push({ path: dest, text }); report.aiArchives++ }
+    }
+    // 여러 대화: 이어지는 대화는 더 긴 쪽으로, 갈라진 대화는 '(다른 PC)' 새 대화로 보존한다. 로컬 대화는 지우지 않는다.
+    for (const [path, bytes] of Object.entries(files)) {
+      const m = CHAT_PATH.exec(path)
+      if (!m) continue
+      const text = new TextDecoder().decode(bytes)
+      const incoming = parseChat(text, m[1])
+      const dest = join(this.root, 'personal/ai/chats', `${m[1]}.json`)
+      if (!existsSync(dest)) { writes.push({ path: dest, text }); report.aiMessages += incoming.messages.length; continue }
+      const current = parseChat(readFileSync(dest, 'utf8'), m[1])
+      if (isPrefix(current.messages, incoming.messages)) {
+        if (incoming.messages.length > current.messages.length) {
+          writes.push({ path: dest, text: JSON.stringify({ title: current.title, created: current.created, messages: incoming.messages }) })
+          report.aiMessages += incoming.messages.length - current.messages.length
+        }
+      } else if (!isPrefix(incoming.messages, current.messages)) {
+        const copy = join(this.root, 'personal/ai/chats', `${m[1].slice(0, 40)}-${hash(JSON.stringify(incoming.messages)).slice(0, 8)}.json`)
+        if (!existsSync(copy)) { writes.push({ path: copy, text: JSON.stringify({ title: `${incoming.title} (다른 PC)`, created: incoming.created, messages: incoming.messages }) }); report.aiArchives++ }
+      }
     }
     return { report, fingerprint: this.fingerprint(), writes, manifest }
   }

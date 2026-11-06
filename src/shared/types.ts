@@ -114,9 +114,15 @@ export interface Api extends WorkspaceFeaturesApi {
   driveMergeApply(token: string): Promise<MergeReport>
   driveAutoMerge(enabled: boolean): Promise<CloudState>
   aiConfigure(key: string, model: string): Promise<CloudState>
-  aiMessages(): Promise<AiMessage[]>
-  aiArchives(): Promise<{ id: string; messages: AiMessage[] }[]>
-  aiSend(text: string): Promise<AiMessage[]>
+  aiChats(): Promise<AiChatSummary[]>
+  aiChat(id: string): Promise<AiChat>
+  /** chatId가 없으면 새 대화를 만든다 */
+  aiSend(chatId: string | null, text: string): Promise<AiChat>
+  /** 마지막 질문에 답을 다시 받아 대화 끝에 덧붙인다 (이전 답도 남는다) */
+  aiRegenerate(chatId: string): Promise<AiChat>
+  aiRename(chatId: string, title: string): Promise<AiChat>
+  /** 이 API 키로 쓸 수 있는 Gemini 모델 */
+  aiModels(): Promise<string[]>
   info(): Promise<AppInfo>
   createWorkspace(name: string): Promise<AppInfo>
   switchWorkspace(id: string): Promise<AppInfo>
@@ -199,6 +205,8 @@ export interface MergeReport {
   aiArchives: number
 }
 export interface AiMessage { role: 'user' | 'model'; text: string; created: string }
+export interface AiChat { id: string; title: string; created: string; messages: AiMessage[] }
+export interface AiChatSummary { id: string; title: string; updated: string; count: number }
 export interface CloudState {
   driveConfigured: boolean
   driveConnected: boolean
@@ -212,6 +220,8 @@ export interface CloudState {
   error?: string
   aiConfigured: boolean
   aiModel: string
+  /** 이번 달 Gemini 사용 토큰 (이 PC 기준) */
+  aiTokensThisMonth?: number
 }
 
 export type Provider = 'google' | 'naver'

@@ -2,7 +2,7 @@
 import { builtinHolidays } from '../../shared/holidays'
 import { changedSince, conflictTitle } from '../../shared/sync'
 import { mockWorkspaceFeatures } from './mockWorkspaceFeatures'
-import type { AiMessage, CloudState, Api, ConnectionsState, ExternalEvent, Note, NoteSummary, WorkspaceInfo } from '../../shared/types'
+import type { AiChat, CloudState, Api, ConnectionsState, ExternalEvent, Note, NoteSummary, WorkspaceInfo } from '../../shared/types'
 
 export function installMockApi(): void {
   if ((window as unknown as { api?: Api }).api) return
@@ -103,8 +103,19 @@ export function installMockApi(): void {
     documentCount: all().filter((n) => n.kind === 'document').length,
     scratchShortcut: 'CommandOrControl+Shift+Space'
   })
+  const MOCK_ANSWER = [
+    '미리보기 응답이에요. 실제 Gemini 호출은 데스크톱 앱에서 이뤄져요.',
+    '',
+    '### 정리',
+    '1. **요청**: 질문을 API 키와 함께 보내요.',
+    '2. **응답**: Gemini가 만든 답을 돌려받아요.',
+    '',
+    '```python',
+    'print("안녕")',
+    '```'
+  ].join('\n')
   const cloudStates = new Map<string, CloudState>()
-  const chats = new Map<string, AiMessage[]>()
+  const chats = new Map<string, AiChat[]>()
   const cloudState = (): CloudState => {
     if (!cloudStates.has(workspaceId)) cloudStates.set(workspaceId, { driveConfigured: false, driveConnected: false, autoBackup: false, pendingBackups: 0, aiConfigured: false, aiModel: 'gemini-flash-latest' })
     return cloudStates.get(workspaceId)!
@@ -127,14 +138,33 @@ export function installMockApi(): void {
     driveMergeApply: async () => ({ token: 'preview-merge', added: 2, updated: 1, conflicts: 1, unchanged: 3, archived: 0, aiMessages: 0, aiArchives: 0 }),
     driveAutoMerge: async (on) => { cloudState().autoMerge = on; if (on) cloudState().autoBackup = true; return { ...cloudState() } },
     aiConfigure: async (key, model) => { if (key.trim()) cloudState().aiConfigured = true; cloudState().aiModel = model; return { ...cloudState() } },
-    aiMessages: async () => [...(chats.get(workspaceId) ?? [])],
-    aiArchives: async () => [],
-    aiSend: async (text) => {
-      const history = chats.get(workspaceId) ?? []
-      history.push({ role: 'user', text, created: new Date().toISOString() }, { role: 'model', text: '미리보기 응답이에요. 실제 Gemini 호출은 데스크톱 앱에서 이뤄져요.', created: new Date().toISOString() })
-      chats.set(workspaceId, history)
-      return [...history]
+    aiChats: async () => [...(chats.get(workspaceId) ?? [])].map(c => ({ id: c.id, title: c.title, updated: c.messages.at(-1)?.created ?? c.created, count: c.messages.length })).sort((a, b) => b.updated.localeCompare(a.updated)),
+    aiChat: async (id) => {
+      const c = (chats.get(workspaceId) ?? []).find(x => x.id === id)
+      if (!c) throw new Error('대화를 찾을 수 없어요')
+      return structuredClone(c)
     },
+    aiSend: async (id, text) => {
+      const list = chats.get(workspaceId) ?? []
+      chats.set(workspaceId, list)
+      const now = new Date().toISOString()
+      let c = list.find(x => x.id === id)
+      if (!c) { c = { id: `chat-${seq++}`, title: text.length > 40 ? `${text.slice(0, 40)}…` : text, created: now, messages: [] }; list.push(c) }
+      c.messages.push({ role: 'user', text, created: now }, { role: 'model', text: MOCK_ANSWER, created: now })
+      cloudState().aiTokensThisMonth = (cloudState().aiTokensThisMonth ?? 0) + 120
+      return structuredClone(c)
+    },
+    aiRegenerate: async (id) => {
+      const c = (chats.get(workspaceId) ?? []).find(x => x.id === id)!
+      c.messages.push({ role: 'model', text: '다시 받은 미리보기 답변이에요.', created: new Date().toISOString() })
+      return structuredClone(c)
+    },
+    aiRename: async (id, title) => {
+      const c = (chats.get(workspaceId) ?? []).find(x => x.id === id)!
+      c.title = title.trim()
+      return structuredClone(c)
+    },
+    aiModels: async () => ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.5-pro'],
     info,
     createWorkspace: async (name) => {
       if (!name.trim() || workspaces.some(w => w.name === name.trim())) throw new Error('이름을 확인해 주세요')
