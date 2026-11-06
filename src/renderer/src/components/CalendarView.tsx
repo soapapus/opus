@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { buildMonthGrid, parseDateStr, toDateStr, todayStr } from '../../../shared/calendar'
 import type { Holiday } from '../../../shared/holidays'
 import type { ExternalEvent, NoteSummary } from '../../../shared/types'
@@ -185,6 +185,7 @@ export function CalendarView(p: Props) {
   if (p.prefs.showGoogle) filters.push({ k: 'google', label: 'Google' })
 
   return (
+    <div className={`cal-stack ${p.view === 'month' ? 'with-agenda' : ''}`}>
     <section className="calv cardp">
       <header className="cardp-h calv-head">
         <div className="datebadge" aria-hidden="true">
@@ -243,7 +244,7 @@ export function CalendarView(p: Props) {
         </div>
       </div>
 
-      {p.view === 'month' && <MonthGrid {...p} map={map} onAddAt={setAdding} />}
+      {p.view === 'month' && <MonthGrid {...p} map={map} onAddAt={setAdding} compact />}
       {p.view === 'week' && <WeekGrid {...p} map={map} start={range.start} />}
       {p.view === 'day' && <DayGrid {...p} list={map.get(p.selected) ?? []} />}
 
@@ -258,13 +259,60 @@ export function CalendarView(p: Props) {
         />
       )}
     </section>
+    {p.view === 'month' && <MonthAgenda chips={chips} month={p.selected.slice(0, 7)} today={p.today} selectedId={p.selectedId} onOpen={p.onOpen} />}
+    </div>
   )
 }
 
-function MonthGrid(p: Props & { map: Map<string, Chip[]>; onAddAt: (d: string) => void }) {
+const KIND_LABEL: Record<Chip['type'], string> = { event: '일정', note: '기록', google: 'Google' }
+
+/** 월 보기 아래 카드: 이번 달 일정을 날짜순 한 줄씩 간단히 보여 준다 */
+function MonthAgenda(p: { chips: Chip[]; month: string; today: string; selectedId: string | null; onOpen: (c: Chip) => void }) {
+  const list = p.chips.filter((c) => c.date.startsWith(p.month))
+  const m = Number(p.month.slice(5, 7))
+  const box = useRef<HTMLDivElement>(null)
+  // 달을 바꾸면 오늘 이후 첫 일정이 맨 위에 오도록 (지난 일정은 위로 스크롤하면 보임)
+  useEffect(() => {
+    const el = box.current?.querySelector<HTMLElement>('.ag-row:not(.past)')
+    if (box.current) box.current.scrollTop = el ? el.offsetTop - box.current.offsetTop - 4 : 0
+  }, [p.month])
+  return (
+    <section className="cal-agenda cardp" aria-label={`${m}월 일정`}>
+      <header className="cal-agenda-h">
+        <b>{m}월 일정</b>
+        <span className="muted">{list.length}개 · 날짜순</span>
+      </header>
+      <div className="cal-agenda-list" ref={box}>
+        {list.length === 0 && <p className="cal-agenda-empty">이번 달 일정이 없어요. 달력 칸을 두 번 누르면 바로 추가할 수 있어요.</p>}
+        {list.map((c, i) => {
+          const { month, day } = parseDateStr(c.date)
+          const first = i === 0 || list[i - 1].date !== c.date
+          return (
+            <button
+              key={c.key}
+              type="button"
+              className={`ag-row ${c.type} ${c.date < p.today ? 'past' : ''} ${c.note && c.note.id === p.selectedId ? 'on' : ''}`}
+              title={c.type === 'google' ? `${c.title} · ${c.sub ?? 'Google'} (읽기 전용)` : c.title}
+              onClick={() => p.onOpen(c)}
+            >
+              <span className="ag-date">{first ? `${month}월 ${day}일 (${WD[wd(c.date)]})` : ''}</span>
+              <span className="ag-bar" aria-hidden="true" />
+              <span className="ag-title">{c.title}</span>
+              <span className="ag-time">{c.time ?? '종일'}</span>
+              <span className="ag-kind">{KIND_LABEL[c.type]}</span>
+            </button>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+function MonthGrid(p: Props & { map: Map<string, Chip[]>; onAddAt: (d: string) => void; compact?: boolean }) {
   const { year, month } = parseDateStr(p.selected)
   const grid = useMemo(() => buildMonthGrid(year, month), [year, month])
-  const max = p.prefs.calChipsPerCell
+  // 아래 '이번 달 일정' 카드가 전부 보여 주므로, 작아진 달력 칸에는 1개만 두고 나머지는 개수로
+  const max = p.compact ? 1 : p.prefs.calChipsPerCell
   return (
     <div className="mgrid">
       <div className="mgrid-wd">
@@ -311,7 +359,7 @@ function MonthGrid(p: Props & { map: Map<string, Chip[]>; onAddAt: (d: string) =
                 {list.slice(0, max).map((x) => (
                   <ChipView key={x.key} c={x} selectedId={p.selectedId} onOpen={p.onOpen} />
                 ))}
-                {list.length > max && <span className="more2">{list.length - max}개 더…</span>}
+                {list.length > max && <span className="more2">{p.compact ? `+${list.length - max}` : `${list.length - max}개 더…`}</span>}
               </div>
             </div>
           )
