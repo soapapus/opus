@@ -5,6 +5,8 @@ import { extname, join, normalize } from 'node:path'
 
 const root = join(process.cwd(), 'out', 'renderer')
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.woff2': 'font/woff2', '.woff': 'font/woff', '.png': 'image/png', '.svg': 'image/svg+xml' }
+// 설치본과 같은 CSP (src/shared/csp.ts 와 같아야 함, tests/csp.test.ts 가 확인)
+const CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; script-src 'self'"
 const port = Number(process.env.PORT ?? 4173)
 
 createServer(async (req, res) => {
@@ -13,7 +15,7 @@ createServer(async (req, res) => {
   if (!path.startsWith(root)) return void res.writeHead(403).end()
   try {
     const body = await readFile(path)
-    res.writeHead(200, { 'content-type': types[extname(path)] ?? 'application/octet-stream' }).end(body)
+    res.writeHead(200, { 'content-type': types[extname(path)] ?? 'application/octet-stream', 'content-security-policy': CSP }).end(body)
   } catch {
     res.writeHead(404).end()
   }
