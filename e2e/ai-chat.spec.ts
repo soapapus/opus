@@ -84,6 +84,50 @@ test.describe('AI 탭', () => {
     assertNoErrors(errors)
   })
 
+  test('답을 못 받은 질문은 다른 메뉴에 다녀와도 이유와 다시 보내기가 남고, 다시 보내면 답이 붙는다', async ({ page }) => {
+    const errors = await openAi(page)
+    await page.evaluate(() => {
+      // 실제 앱처럼: 실패해도 질문은 저장되고 답은 없다
+      const chat = { id: 'fail', title: 'HI , AI', created: '2026-11-05T01:00:00Z', messages: [] as { role: 'user' | 'model'; text: string; created: string }[] }
+      let saved = false
+      window.api.aiChats = async () => (saved ? [{ id: chat.id, title: chat.title, updated: '2026-11-05T01:00:00Z', count: chat.messages.length }] : [])
+      window.api.aiChat = async () => structuredClone(chat)
+      window.api.aiSend = async (_id, text) => {
+        saved = true
+        chat.messages.push({ role: 'user', text, created: '2026-11-05T01:00:00Z' })
+        throw new Error("Error invoking remote method 'ld:aiSend': Error: Gemini 요청 실패 (403). API 키가 맞지 않아요")
+      }
+      window.api.aiRegenerate = async () => {
+        chat.messages.push({ role: 'model', text: '안녕하세요!', created: '2026-11-05T01:00:05Z' })
+        return structuredClone(chat)
+      }
+    })
+    await page.getByLabel('Gemini에게 질문', { exact: true }).fill('HI , AI')
+    await page.getByRole('button', { name: 'Gemini에 전송' }).click()
+    await expect(page.getByRole('alert')).toHaveText('Gemini 요청 실패 (403). API 키가 맞지 않아요')
+    await page.locator('.rail-btn[aria-label="메모"]').click()
+    await page.locator('.rail-btn[aria-label="AI"]').click()
+    await expect(page.locator('.ai-message.user .bubble')).toHaveText('HI , AI')
+    await expect(page.getByRole('alert')).toHaveText('Gemini 요청 실패 (403). API 키가 맞지 않아요')
+    await page.getByRole('button', { name: '다시 보내기' }).click()
+    await expect(page.locator('.ai-message.model')).toContainText('안녕하세요!')
+    await expect(page.getByRole('button', { name: '다시 보내기' })).toHaveCount(0)
+    await expect(page.getByRole('alert')).toHaveCount(0)
+    assertNoErrors(errors)
+  })
+
+  test('저장된 키가 맞지 않으면 대화 위에 키 확인 실패를 보여 준다', async ({ page }) => {
+    const errors = await openApp(page)
+    await page.evaluate(async () => {
+      window.api.aiModels = async () => { throw new Error("Error invoking remote method 'ld:aiModels': Error: Gemini 요청 실패 (400). API 키가 맞지 않거나 이 키로 Gemini API를 쓸 수 없어요") }
+      await window.api.aiConfigure('wrong-key', 'gemini-flash-latest')
+    })
+    await page.locator('.rail-btn[aria-label="AI"]').click()
+    await expect(page.locator('.ai-keycheck')).toContainText('Gemini 키 확인 실패: Gemini 요청 실패 (400). API 키가 맞지 않거나')
+    await expect(page.locator('.ai-keycheck').getByRole('button', { name: '설정 열기' })).toBeVisible()
+    assertNoErrors(errors)
+  })
+
   test('키가 없으면 입력창이 잠기고 설정으로 안내한다', async ({ page }) => {
     const errors = await openAi(page, false)
     await expect(page.getByLabel('Gemini에게 질문', { exact: true })).toBeDisabled()
